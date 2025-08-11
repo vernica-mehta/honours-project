@@ -173,11 +173,6 @@ class SFH():
 
         return self.wav, s
 
-
-
-if __name__ == "__main__":
-    sfh = SFH(None)
-
 def churn_galaxies(t):
 
     """ Function to churn galaxies, generating random SFHs and computing their spectra.
@@ -207,3 +202,13 @@ def churn_galaxies(t):
     hdu.writeto('sfh_spectra.fits', overwrite=True)
 
     return
+
+if __name__ == "__main__":
+
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Churn galaxies for a given time (in hours).")
+    parser.add_argument("hours", type=float, help="Time in hours to run galaxy churning process.")
+    args = parser.parse_args()
+
+    churn_galaxies(args.hours)
