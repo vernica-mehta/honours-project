@@ -201,6 +201,8 @@ def churn_galaxies(t):
     hdu = fits.BinTableHDU.from_columns([col1, col2, col3])
     hdu.writeto('sfh_spectra.fits', overwrite=True)
 
+    print(".fits file generated!")
+
     return
 
 if __name__ == "__main__":
@@ -211,4 +213,5 @@ if __name__ == "__main__":
     parser.add_argument("hours", type=float, help="Time in hours to run galaxy churning process.")
     args = parser.parse_args()
 
+    print("Starting churn...")
     churn_galaxies(args.hours)
