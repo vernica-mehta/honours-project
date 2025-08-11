@@ -11,8 +11,30 @@ else:
 
 # imports
 import fsps
-import matplotlib.pyplot as plt
 import numpy as np
+from astropy.io import fits
+import time
+
+def gen_rand_sfh():
+
+    """ Uses a Dirichlet distribution to generate a random SFH array with length from 5 to 10.
+
+    Returns
+    -------
+    arr : `array`
+        Random SFH array.
+    """
+    print("Generating random SFH...")
+
+    length = np.random.randint(5, 11)
+
+    alpha_value = np.random.uniform(0.1, 5.0)
+    alpha = np.full(length, alpha_value)
+
+    arr = np.random.dirichlet(alpha)
+    print("Random SFH generated:", arr)
+
+    return arr
 
 class SFH():
 
@@ -139,12 +161,15 @@ class SFH():
             Final spectrum of the galaxy at present-day universe age.
         """
 
+        print("Compiling spectrum...")
+
         averages = self.get_averages()
 
         for key, w in zip(averages.keys(), self.sfh_weights):
             averages[key] *= w
 
         s = np.vstack(list(averages.values())).sum(axis=0)
+        print("Final spectrum compiled!")
 
         return self.wav, s
 
@@ -152,3 +177,33 @@ class SFH():
 
 if __name__ == "__main__":
     sfh = SFH(None)
+
+def churn_galaxies(t):
+
+    """ Function to churn galaxies, generating random SFHs and computing their spectra.
+    Input time in hours.
+    Generated weighted and spectra will be outputted to a .fits file.
+    """
+
+    t_end = time.time() + 3600 * t
+
+    weights_list = []
+    s_list = []
+
+    while time.time() < t_end:
+
+        weights = gen_rand_sfh()
+        galaxy = SFH(weights)
+        wav, s = galaxy.final_spectrum()
+
+        weights_list.append(weights)
+        s_list.append(s)
+
+    col1 = fits.Column(name='SFH function', format='PD()', array=weights_list)
+    col2 = fits.Column(name='Spectrum', format='PD()', array=s_list)
+    col3 = fits.Column(name='Wavelengths', format='PD()', array=[wav])
+
+    hdu = fits.BinTableHDU.from_columns([col1, col2, col3])
+    hdu.writeto('sfh_spectra.fits', overwrite=True)
+
+    return
