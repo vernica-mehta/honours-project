@@ -7,7 +7,7 @@
 %%\newcommand*{\mysvnrev}{\svnrev}
 \usepackage[hyperindex=true,
 			bookmarks=true,
-            pdftitle={}, pdfauthor={Xi Yang},
+            pdftitle={}, pdfauthor={Vernica Mehta},
             colorlinks=false,
             pdfborder=0,
             pagebackref=false,
@@ -53,8 +53,8 @@
 \input{macros}            
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Preamble
-\title{Title Is Here}
-\author{Author Name}
+\title{Developing and Implementing a Training Set for \textit{The Cannon} to Determine Galaxy Characteristics}
+\author{Vernica Mehta}
 \date{\today}
 
 \renewcommand{\thepage}{\roman{page}}
@@ -69,22 +69,6 @@
 \input{titlepage}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% Here begin the preliminaries
-\input{frontmatter}
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% Dedication
-\cleardoublepage
-\pagestyle{empty}
-\input{dedication}
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% Acknowledgements
-\cleardoublepage
-\pagestyle{empty}
-\input{ack}
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Abstract
 \cleardoublepage
 \pagestyle{headings}
@@ -96,8 +80,6 @@
 \pagestyle{headings}
 \markboth{Contents}{Contents}
 \tableofcontents
-\listoffigures
-\listoftables
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Here begins the main text
@@ -107,21 +89,20 @@
 \input{intro}
 
 %% Chapters
-\input{background}
-\input{design}
+\input{lit-review}
 \input{methodology}
-\input{results}
-\input{conclusion}
+\input{timeline}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Here begins the end matter
 
-%%\input{appendix}
 
 \backmatter
 
 \bibliographystyle{anuthesis}
 \bibliography{thesis}
+
+\input{appendix}
 
 \printindex
 
