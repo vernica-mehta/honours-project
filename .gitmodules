@@ -1,0 +1,6 @@
+[submodule "the-cannon"]
+	path = the-cannon
+	url = git@github.com:vernica-mehta/the-cannon.git
+[submodule "fsps"]
+	path = fsps
+	url = git@github.com:cconroy20/fsps.git
