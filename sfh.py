@@ -15,16 +15,20 @@ import numpy as np
 from astropy.io import fits
 import time
 
-def gen_rand_sfh():
+def gen_rand_sfh(length):
 
     """ Uses a Dirichlet distribution to generate a random SFH array with length from 5 to 10.
 
+    Parameters
+    ----------
+    length : `int`
+        Desired length of SFH array of fractions.
+    
     Returns
     -------
     arr : `array`
         Random SFH array.
     """
-    print("Generating random SFH...")
 
     length = np.random.randint(5, 11)
 
@@ -67,9 +71,12 @@ class SFH():
 
         sp = fsps.StellarPopulation(
             sfh = 0,
-            imf_type = self.imf
+            imf_type = self.imf,
+            nebemlineinspec = False # turn off nebular emission in spectrum
         )
         self.wav, self.spec = sp.get_spectrum()
+        self.wav = self.wav[330:4664] # truncating dataset to 300-900 nm wavelength range
+        self.spec = self.spec[:][330:4664]
 
         print("Initialising binning...")
 
@@ -173,21 +180,19 @@ class SFH():
 
         return self.wav, s
 
-def churn_galaxies(t):
+def churn_galaxies(n, sfh_len):
 
     """ Function to churn galaxies, generating random SFHs and computing their spectra.
     Input time in hours.
     Generated weighted and spectra will be outputted to a .fits file.
     """
 
-    t_end = time.time() + 3600 * t
-
     weights_list = []
     s_list = []
+    
+    for i in range(0,n):
 
-    while time.time() < t_end:
-
-        weights = gen_rand_sfh()
+        weights = gen_rand_sfh(sfh_len)
         galaxy = SFH(weights)
         wav, s = galaxy.final_spectrum()
 
