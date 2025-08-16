@@ -7,11 +7,18 @@ Since the 1920s, scientists have recognised the existence of galaxies outside th
 \section{Motivation}
 \label{sec:motivation}
 
-Machine-learning algorithms, supervised and unsupervised, have been gaining traction in astronomy due to the recent and ongoing flourishing of large-scale surveys like \sdss \citep{york_sloan_2000}, Gaia \citep{gaia_collaboration_gaia_2016}, and \desi \citep{desi_collaboration_early_2024}. 
+Machine-learning algorithms have been gaining traction in astronomy due to the recent and ongoing flourishing of large-scale surveys like \sdss \citep{york_sloan_2000}, Gaia \citep{gaia_collaboration_gaia_2016}, and \desi \citep{desi_collaboration_early_2024}. The automation of detection, characterisation, and classification processes has streamlined the interpretation of the massive data outputs produced by these missions. When it comes to determining characteristic labels from stellar spectra, \textit{The Cannon} \citep{ness_cannon_2015} provides a data-driven, supervised learning approach enabling the discernment of stellar kinematics and chemical composition from a single spectrum. However, an equivalent tool for galaxies does not yet exist.
+
+Recovering galactic properties, including star formation history, chemical composition, and kinematics, is important in not only uncovering a particular galaxy's evolutionary path but also in working towards deriving broader cosmological patterns. While a plethora of studies have used various techniques to retrieve this information from galactic spectra \citep[e.g.][]{mathis_extracting_2006, tojeiro_recovering_2007, silva-lima_optimizing_2025}, the sheer complexity of disentangling features from composite stellar populations and the \ism makes the process slow and challenging. As a result, the effort to determine fundamental galactic parameters for even single galaxies often hinders deeper analysis into large-scale trends and cosmological implications. Thus emerges a need for a machine-learning model, analogous to \textit{The Cannon}, which can resolve galaxy parameters from a spectrum.
+
+This intersection between the need for efficient interpretation of galaxy spectra with the availability of algorithms that can be trained to perform such a task is the primary motivator for my project. Ultimately, the aim is to develop a trained algorithm that can return galaxy parameters with high confidence, requiring the input of only a single spectrum. However, there are many intermediate steps to fulfilling this goal, which will be examined in detail in the following section.
 
 \section{Objectives}
 \label{sec:objectives}
-
+The overarching objective of this project is to train and test the existing machine-learning software \textit{The Cannon} to interpret any given present-day galaxy spectrum for key parameters. Initially, I am working towards resolving star formation histories, but other properties like chemical composition and even dynamical evolution can later be added to increase the complexity of the model. Breaking this down into a series of milestones:
+\begin{enumerate}
+    \item 
+\end{enumerate}
 
 \section{Proposal Outline}
 \label{sec:outline}

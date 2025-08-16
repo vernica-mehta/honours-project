@@ -347,39 +347,49 @@ FUNCTION {format.names}
   s num.names$ 'numnames :=
   numnames 'namesleft :=
     { namesleft #0 > }
-    { s nameptr
-      "{vv~}{ll}{, f.}{, jj}"
-      format.name$
-      bibinfo bibinfo.check
-      't :=
-      nameptr #1 >
-        {
-          namesleft #1 >
-            { "; " * t * }
-            {
-              s nameptr "{ll}" format.name$ duplicate$ "others" =
-                { 't := }
-                { pop$ }
-              if$
-              numnames #2 >
-                { ";" * }
-                'skip$
-              if$
-              t "others" =
-                {
-                  " " * bbl.etal *
-                  bib.name.font
-                }
-                {
-                  bbl.and
-                  space.word * t *
-                }
-              if$
+    {
+      % --- BEGIN MODIFICATION ---
+      numnames #5 >
+        { % YES, there are more than 5 authors, so truncate.
+          nameptr #5 <
+            { % For authors 1 through 4...
+              s nameptr "{vv~}{ll}{, f.}{, jj}" format.name$ 't :=
+              nameptr #1 > { "; " * t * } 't if$
+            }
+            { % For author 5...
+              s nameptr "{vv~}{ll}{, f.}{, jj}" format.name$ 't :=
+              "; " * t * " " * bbl.etal * % Print author 5, then "et al."
+              #0 'namesleft :=             % Force the loop to stop
             }
           if$
         }
-        't
+        { % NO, there are 5 or fewer authors. Use original logic.
+          s nameptr "{vv~}{ll}{, f.}{, jj}" format.name$
+          bibinfo bibinfo.check
+          't :=
+          nameptr #1 >
+            { namesleft #1 >
+                { "; " * t * }
+                { s nameptr "{ll}" format.name$ duplicate$ "others" =
+                    { 't := }
+                    { pop$ }
+                  if$
+                  numnames #2 >
+                    { ";" * }
+                    'skip$
+                  if$
+                  t "others" =
+                    { " " * bbl.etal * }
+                    { bbl.and space.word * t * }
+                  if$
+                }
+              if$
+            }
+            't
+          if$
+        }
       if$
+      % --- END MODIFICATION ---
       nameptr #1 + 'nameptr :=
       namesleft #1 - 'namesleft :=
     }
@@ -391,8 +401,7 @@ FUNCTION {format.names}
   } if$
 }
 FUNCTION {format.names.ed}
-{
-  'bibinfo :=
+{ 'bibinfo :=
   duplicate$ empty$ 'skip$ {
   's :=
   "" 't :=
@@ -400,40 +409,49 @@ FUNCTION {format.names.ed}
   s num.names$ 'numnames :=
   numnames 'namesleft :=
     { namesleft #0 > }
-    { s nameptr
-      "{f.~}{vv~}{ll}{, jj}"
-      format.name$
-      bibinfo bibinfo.check
-      't :=
-      nameptr #1 >
-        {
-          namesleft #1 >
-            { "; " * t * }
-            {
-              s nameptr "{ll}" format.name$ duplicate$ "others" =
-                { 't := }
-                { pop$ }
-              if$
-              numnames #2 >
-                { ";" * }
-                'skip$
-              if$
-              t "others" =
-                {
-
-                  " " * bbl.etal *
-                  bib.name.font
-                }
-                {
-                  bbl.and
-                  space.word * t *
-                }
-              if$
+    {
+      % --- BEGIN MODIFICATION ---
+      numnames #5 >
+        { % YES, there are more than 5 editors, so truncate.
+          nameptr #5 <
+            { % For editors 1 through 4...
+              s nameptr "{f.~}{vv~}{ll}{, jj}" format.name$ 't :=
+              nameptr #1 > { "; " * t * } 't if$
+            }
+            { % For editor 5...
+              s nameptr "{f.~}{vv~}{ll}{, jj}" format.name$ 't :=
+              "; " * t * " " * bbl.etal * % Print editor 5, then "et al."
+              #0 'namesleft :=             % Force the loop to stop
             }
           if$
         }
-        't
+        { % NO, there are 5 or fewer editors. Use original logic.
+          s nameptr "{f.~}{vv~}{ll}{, jj}" format.name$
+          bibinfo bibinfo.check
+          't :=
+          nameptr #1 >
+            { namesleft #1 >
+                { "; " * t * }
+                { s nameptr "{ll}" format.name$ duplicate$ "others" =
+                    { 't := }
+                    { pop$ }
+                  if$
+                  numnames #2 >
+                    { ";" * }
+                    'skip$
+                  if$
+                  t "others" =
+                    { " " * bbl.etal * }
+                    { bbl.and space.word * t * }
+                  if$
+                }
+              if$
+            }
+            't
+          if$
+        }
       if$
+      % --- END MODIFICATION ---
       nameptr #1 + 'nameptr :=
       namesleft #1 - 'namesleft :=
     }
@@ -966,9 +984,13 @@ FUNCTION {article}
       format.pages output
     }
   if$
-  format.doi output
-  new.block
-  format.url output
+  % --- BEGIN MODIFICATION ---
+  % If the DOI field exists, print it. Otherwise, print the URL.
+  doi empty$
+    { new.block format.url output }
+    { format.doi output }
+  if$
+  % --- END MODIFICATION ---
   new.block
   format.note output
   fin.entry
@@ -1526,7 +1548,20 @@ EXECUTE {initialize.extra.label.stuff}
 ITERATE {forward.pass}
 REVERSE {reverse.pass}
 FUNCTION {bib.sort.order}
-{ sort.label
+{
+  % The original function used 'sort.label' as the primary key, which is
+  % the Author-Year string. We replace it with the logic to get the full
+  % author/editor list, making the sort order purely alphabetical.
+  type$ "book" =
+  type$ "inbook" =
+  or
+    'author.editor.sort
+    { type$ "proceedings" =
+        'editor.sort
+        'author.sort
+      if$
+    }
+  if$
   "    "
   *
   year field.or.null sortify
