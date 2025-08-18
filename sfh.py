@@ -74,7 +74,7 @@ class SFH():
         )
         self.wav, self.spec = sp.get_spectrum()
         self.wav = self.wav[330:4664] # truncating dataset to 300-900 nm wavelength range
-        self.spec = self.spec[:][330:4664]
+        self.spec = self.spec[:,330:4664]
 
         print("Initialising binning...")
 
