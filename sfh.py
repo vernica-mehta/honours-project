@@ -13,6 +13,7 @@ else:
 import fsps
 import numpy as np
 from astropy.io import fits
+import datetime
 
 def gen_rand_sfh(length):
 
@@ -28,8 +29,6 @@ def gen_rand_sfh(length):
     arr : `array`
         Random SFH array.
     """
-
-    length = np.random.randint(5, 11)
 
     alpha_value = np.random.uniform(0.1, 5.0)
     alpha = np.full(length, alpha_value)
@@ -197,15 +196,23 @@ def churn_galaxies(n, sfh_len):
 
         weights_list.append(weights)
         s_list.append(s)
+    
+    weights_arr = np.array(weights_list)
+    s_arr       = np.array(s_list)
 
-    col1 = fits.Column(name='SFH function', format='PD()', array=weights_list)
-    col2 = fits.Column(name='Spectrum', format='PD()', array=s_list)
-    col3 = fits.Column(name='Wavelengths', format='PD()', array=[wav])
+    col1 = fits.Column(name="SFH function", format=f"{weights_arr.shape[1]}D", array=weights_arr)
+    col2 = fits.Column(name="Spectrum", format=f"{s_arr.shape[1]}D", array=s_arr)
 
-    hdu = fits.BinTableHDU.from_columns([col1, col2, col3])
-    hdu.writeto('sfh_spectra.fits', overwrite=True)
+    table_hdu = fits.BinTableHDU.from_columns([col1, col2])
+    wav_hdu   = fits.ImageHDU(data=wav, name="WAVELENGTHS")
+    hdul = fits.HDUList([fits.PrimaryHDU(), table_hdu, wav_hdu])
 
-    print(".fits file generated!")
+
+    now = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename  = f"sfh_{n}_{sfh_len}_{now}.fits"
+    hdul.writeto(filename, overwrite=True)
+
+    print(f".fits file generated: {filename}")
 
     return
 
@@ -213,9 +220,12 @@ if __name__ == "__main__":
 
     import argparse
 
-    parser = argparse.ArgumentParser(description="Churn galaxies for a given time (in hours).")
-    parser.add_argument("hours", type=float, help="Time in hours to run galaxy churning process.")
+    parser = argparse.ArgumentParser(description="Churn given number of galaxies, using SFH of uniform given length.")
+    parser.add_argument("n", type=int, help="Number of galaxies to generate.")
+    parser.add_argument("sfh_len", type=int, help="Length of uniform SFH array.")
     args = parser.parse_args()
 
     print("Starting churn...")
-    churn_galaxies(args.hours)
+    churn_galaxies(args.n, args.sfh_len)
+
+# to run via terminal, use the command `./run_sfh.sh [n] [sfh_len]
