@@ -3,3 +3,4 @@
 .DS_store
 *.log
 __pycache__/
+.nfs*
