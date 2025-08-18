@@ -13,11 +13,10 @@ else:
 import fsps
 import numpy as np
 from astropy.io import fits
-import time
 
 def gen_rand_sfh(length):
 
-    """ Uses a Dirichlet distribution to generate a random SFH array with length from 5 to 10.
+    """ Uses a Dirichlet distribution to generate a random SFH array of desired length.
 
     Parameters
     ----------
