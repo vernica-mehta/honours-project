@@ -3,16 +3,42 @@
 
 It is widely accepted that the universe follows the \lcdm model, that is, a spatially flat cosmology comprised of dark energy, cold dark matter, and ordinary (baryonic) matter \citep[see e.g.][for further discussions on cosmological models]{planck_collaboration_planck_2020, lee_shape_2025}. The many complex components of this paradigm pose challenges to understanding the formation and evolution of galaxies, however, significant strides have been made both through observations and simulations in working towards this goal. This chapter contextualises my thesis within the vast array of existing literature concerning the characterisation of galaxies. More specifically, it will unpack observational and numerical contributions to theories of galaxy formation, assessing the relationship between hierarchical star formation and internal and external processes affecting composite stellar populations.
 
-The relevant background information for this thesis can be categorised under two themes: theory and computation. Section \ref{sec:theory} of this chapter will discuss galaxy parametrisation, introducing the concept of labels and relating the formation of individual stellar populations within a galaxy to its broader conditions. This section will also include a brief overview of \textit{FSPS}, a Python library that can be used to put this theory into practice by synthetically generating stellar populations within a galaxy. Section \ref{sec:software} will further focus on studies in computational astronomy which have worked towards resolving galaxy parameters using numerical simulations and data-driven approaches. A deep dive into \tc will be included, to clarify its role as the algorithmic framework for this project. Through this, I will demonstrate the role of my project both in the development of machine-learning technologies for astronomy, and the applications of such technology in further understanding a crucial structural cosmological component.
+The relevant background information for this thesis can be categorised under two themes: theory and computation. Section \ref{sec:theory} of this chapter will discuss galaxy parametrisation, introducing the concept of labels and relating the formation of individual stellar populations within a galaxy to its broader conditions. This section will also include a brief overview of \textit{FSPS}, a Python library for synthetically generating stellar populations within a galaxy from input parameters. Section \ref{sec:software} will further focus on studies in computational astronomy which have worked towards resolving galaxy parameters using numerical simulations and data-driven approaches. A deep dive into \tc will be included, to clarify its role as the algorithmic framework for this project. Through this, I will demonstrate the role of my project both in the development of machine-learning technologies for astronomy, and the applications of such technology in further understanding a crucial structural cosmological component.
 
 \section{How to Build a Galaxy}
 \label{sec:theory}
 
-Galaxies are shaped by a core set of physical processes --- cosmological accretion, strong stellar-driven winds, black hole feedback, and morphological evolution --- which exchange dialogue with hierarchical bursts of star formation \citep{somerville_physical_2015}.
+Galaxies are shaped by a core set of physical processes --- cosmological accretion, strong stellar-driven winds, black hole feedback, and morphological evolution --- which exist in dialogue with hierarchical bursts of star formation \citep{somerville_physical_2015}. A galaxy's spectrum acts as its fingerprint, revealing these intersecting cosmological and stellar factors which affect its global properties and demographics. Difficulties arise when disentangling individual signatures from the complex web of a galaxy's \sed, which is why its interpretation often involves working backwards using \sps techniques. That is, creating a model to generate a synthetic galaxy spectrum using a series of input parameters, in an attempt to recreate an observed \sed and therefore estimate parameter values from the model \citep{courteau_galaxy_2014}.
+
+When it comes to creating these model spectra, \cite{conroy_modeling_2013} identifies five fundamental properties of unresolved stellar populations that are encoded in galaxy \sed{s}:
+\begin{enumerate}
+    \item \sfh
+    \item Stellar metallicity and abundance pattern
+    \item Stellar \imf
+    \item Total mass in stars
+    \item The physical state and quantity of dust and gas
+\end{enumerate}
+By varying these five properties as input parameters, \sps models can recreate galaxy \sed{s} and achieve a reasonable galaxy characterisation. The following subsection delves into \sfh, as this is the predominant training parameter for \tc in my thesis, however, as it will revealed, all of the above parameters are intrinsically linked and cannot truly by applied in isolation.
 
 \subsection{Star Formation Histories}
 
-\subsection{\textit{FSPS: Flexible Stellar Population Synthesis}}
+Star formation history refers to the distribution of stellar generations in time and chemical enrichment, and can often be described by analytic laws which depend on the time scale of the \sfr. As demonstrated in Fig. \ref{fig:macarthur}, stellar evolution tracks can vary significantly with different \sfh functions, making it a key component of galaxy evolution, and in turn affecting \sed{s}. This is because each generation of stars that comprises a \sfh is its own individual stellar population, also known as a \ssp. However, the nature of an \ssp is determined by initial conditions, that is, the metallicity and elemental abundances of the \ism within the galaxy it forms in, as described by Eq. \ref{eq:conroy} \citep[from][]{conroy_modeling_2013}. 
+
+\begin{equation}
+    f_\text{SSP}(t,Z)=\int_{m_l}^{m_u(t)}f_\text{star}\left[T_\text{eff}(M),\log{g}(M)|t,Z\right]\Phi(M)\text{d}M
+    \label{eq:conroy}
+\end{equation}
+
+In the above, $M$ is the zero-age main sequence stellar mass, $\Phi(M)$ is the \imf, $f_\text{star}$ is a base stellar spectrum, and $f_\text{SSP}$ is the resulting \ssp spectrum, dependent on time $(t)$ and metallicity $(Z)$. The integration boundaries $(m_l$ and $m_u)$ are given by masses related to stellar evolution. Arguably, there is a circular relationship between galactic conditions and the nature of \ssp{s} that make up a galaxy's \sfh. The isochrone that determines the relation between $T_\text{eff}$, $\log{g}$, and $M$ for a given $t$ and $Z$ in Eq. \ref{eq:conroy} is dependent on the metallicity of the nebular matter out of which is forms (i.e. the galaxy). The temporal combination of \ssp{s} (i.e. the \sfh), as well as their metallicity and abundance patterns, are in turn two of the five fundamental parameters that determine a galaxy's \sed, as aforementioned.
+
+\begin{figure}[!h]
+    \includegraphics[width=0.8\textwidth]{figs/fg5.pdf}
+    \centering
+    \caption{Comparison of stellar population model tracks for exponential (blue) and "Sandage" (red) star formation histories. From \citet{macarthur_structure_2004}.}
+    \label{fig:macarthur}
+\end{figure}
+
+Therefore, the parameters of a galaxy and of the stellar populations it harbours are intrinsically linked. This is also asserted by \citet{silva-lima_optimizing_2025}, who observe that stellar evolution occurs faster in the inner galactic regions due to increased activity like star formation, shock, gas accretion, and inflows and outflows of ionised gas.
 
 \section{Software for Galaxy Parametrisation}
 \label{sec:software}

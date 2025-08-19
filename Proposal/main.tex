@@ -1,6 +1,5 @@
 \DocumentMetadata{testphase=new-or-1}
 \documentclass[11pt, a4paper]{book}
-\usepackage[all]{hypcap}
 \usepackage[palatino]{anuthesis}
 \usepackage{afterpage}
 \usepackage{graphicx}
@@ -8,9 +7,9 @@
 \usepackage[round]{natbib}
 \usepackage[normalem]{ulem}
 \usepackage[table]{xcolor}
-\usepackage{makeidx}
-\usepackage[centerlast]{caption2}
+\usepackage[centerlast, labelfont=bf]{caption}
 \usepackage{float}
+\usepackage{amsmath}
 \usepackage[T1]{fontenc}
 \usepackage[scaled]{beramono}
 \usepackage{parskip}
@@ -26,6 +25,7 @@
             pdfpagelabels,
             pagebackref=true,
             breaklinks=true]{hyperref}
+\usepackage[all]{hypcap}
 \usepackage{cleveref}
 \usepackage{multirow}
 
@@ -85,7 +85,5 @@
 \bibliography{thesis}
 
 \input{appendix}
-
-\printindex
 
 \end{document}
