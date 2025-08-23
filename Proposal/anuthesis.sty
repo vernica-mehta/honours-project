@@ -20,7 +20,7 @@
 %%
 %% By default, Computer Modern is used.
 %%
-\NeedsTeXFormat{LaTeX2e}[1995/12/01] \ProvidesPackage{anuthesis}
+\NeedsTeXFormat{LaTeX2e}[1995/12/01] \ProvidesPackage{Proposal/anuthesis}
 [2005/04/04 v0.2 ANU Thesis Style (SB/RW)]
 %%
 %% Declare options
@@ -131,20 +131,6 @@ July\or August\or September\or October\or November\or December\fi
 \def\ps@plain{\let\@mkboth\@gobbletwo
      \let\@oddhead\@empty\def\@oddfoot{\hspace{\tqfootlen}\reset@font\hfil\dopagenum\thepage\hfil\tqfoot}\let\@evenhead\@empty\let\@evenfoot\@oddfoot}
 
-%%
-%% Fix up captions (Entire captions small, "Figure X" in bold)
-%%
-\def\@makecaption#1#2{%
-  \vskip\abovecaptionskip
-  \sbox\@tempboxa{{\small{\bfseries \oldstylenums{#1}}: #2}}%
-  \ifdim \wd\@tempboxa >\hsize
-    {\small{\bfseries \oldstylenums{#1}:} #2}\par
-  \else
-    \global \@minipagefalse
-    \hb@xt@\hsize{\hfil\box\@tempboxa\hfil}%
-  \fi
-  \vskip\belowcaptionskip}
-%%
 %% Get all the spacing right
 %%
 % line spacing
