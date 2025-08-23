@@ -5,4 +5,20 @@
 
 \section{Training Up \textit{The Cannon}}
 
+\subsection{Determining Goodness of Match}
+
+To test the quality of a modelled \gls{sfh} against an original \gls{sfh}, a least-squares fitting approach can be taken \citep{zhang_testing_2025}:
+\begin{equation}
+    \Delta_\text{SFH}=\frac{\sigma}{\mu}
+\end{equation}
+Where $\mu$ is the average \gls{sfr} over the \gls{sfh}, given by
+\begin{equation}
+    \mu\equiv\frac{1}{N}\sum_{i=1}^N\text{SFR}_\text{input,i}
+\end{equation}
+And $\sigma$ is the variance between the input \gls{sfh} and best-fit model \gls{sfh}, given by
+\begin{equation}
+    \sigma\equiv\frac{1}{N}\sum_{i=1}^N\left(\text{SFR}_\text{input,i}-\text{SFR}_\text{model,i}\right)^2
+\end{equation}
+Where $N$ is the total number of time bins used to represent the \gls{sfh}.
+
 \section{Adding Labels, Increasing Complexity}

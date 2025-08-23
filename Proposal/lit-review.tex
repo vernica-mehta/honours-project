@@ -100,25 +100,41 @@ Artificial neural networks are flexible, nonlinear algorithms capable of describ
 
 In general, neural networks require very large amounts of data to be sufficiently trained, which can be computationally expensive. Furthermore, hyper-parametrisation has a tendency to overfit the data, requiring various corrections and causing greater difficulty in interpretation \citep{baron_machine_2019}. While neural networks can be very powerful, the expense required to train such models poses a significant barrier to keeping them up-to-date with the ever-evolving state of galactic astronomy.
 
-A similar obstacle is met when applying deep learning architecture to recover galaxy parameters. Compared to shallow neural networks which have a single hidden layer controlling relationships between variables, deep neutral networks contain several hidden layers with interconnected dependencies. As visualised in Fig. - tens or even hundreds of inputs nodes result in the modelling of only one or two free parameters, 
+A similar obstacle is met when applying deep learning architecture to recover galaxy parameters. Compared to shallow neural networks which have a single hidden layer controlling relationships between variables, deep neutral networks contain several hidden layers with interconnected dependencies. As visualised in Fig. \ref{fig:neural-networks}, tens of inputs nodes result in the modelling of only one or two free parameters, meaning that it may be effective in recovering independent global galactic parameters like age and metallicity \citep[as in][]{li_estimation_2025}, but would not be suitable for retrieving \glspl{sfh} due to the interdependent relationships between \glspl{ssp} and the \gls{ism}.
 
-\subsection{Determining Goodness of Match}
+\begin{figure}[!h]
+    \centering
+    \includegraphics[width=\textwidth]{Proposal/figs/deep_neural_networks.pdf}
+    \caption{Visualisation of deep neural network architecture for interpreting galaxy \glspl{sed}. From \citet{surana_predicting_2020} (left) and \citet{li_estimation_2025} (right).}
+    \label{fig:neural-networks}
+\end{figure}
 
-To test the quality of a modelled \gls{sfh} against an original \gls{sfh}, a least-squares fitting approach can be taken \citep{zhang_testing_2025}:
-\begin{equation}
-    \Delta_\text{SFH}=\frac{\sigma}{\mu}
-\end{equation}
-Where $\mu$ is the average \gls{sfr} over the \gls{sfh}, given by
-\begin{equation}
-    \mu\equiv\frac{1}{N}\sum_{i=1}^N\text{SFR}_\text{input,i}
-\end{equation}
-And $\sigma$ is the variance between the input \gls{sfh} and best-fit model \gls{sfh}, given by
-\begin{equation}
-    \sigma\equiv\frac{1}{N}\sum_{i=1}^N\left(\text{SFR}_\text{input,i}-\text{SFR}_\text{model,i}\right)^2
-\end{equation}
-Where $N$ is the total number of time bins used to represent the \gls{sfh}.
-
-\section{\textit{The Cannon}: Machine-Learning for Stars, Applied to Galaxies}
+\section{\textit{The Cannon}: From Stars to Galaxies}
 \label{sec:tc}
 
-\subsection{SED Possibilities}
+\tc \citep{ness_cannon_2015} is a supervised machine-learning algorithm which uses a data-driven approach to determine stellar labels from spectra. Trained on only 542 stars, with T$_\text{eff}$, log g, and [Fe/H] as labels, the model demonstrates a very high accuracy when applied to the spectra of 55,000 stars from \textit{\acrshort{apogee}} \acrshort{dr}10 and can theoretically be applied to stellar spectra from any survey. I will be re-training \tc to recover labels from galactic spectra, so it is important to discuss the details of how the model works, and how it may need to be adapted for the purposes of my thesis.
+
+Regardless of whether \tc is being used for stars or galaxies, all input spectra --- including reference training sets and survey test spectra --- must meet some basic criteria:
+\begin{itemize}
+    \item Consistent continuum-normalisation.
+    \item Consistent sampling on a rest-frame wavelength grid, with the same line-spread function.
+    \item Flux variance, from photon noise and other sources, must be known at each spectral pixel of each spectrum.
+\end{itemize}
+As a data-driven model, the performance of \tc depends strongly on the size and quality of its training set of reference objects as it is through these that the correlations between the input spectra and labels are learned. As a generative model, an exhaustive set of labels will have been achieved when the continuum-normalised spectra of galaxies with identical labels are identical at every pixel, allowing for some intrinsic scatter and observational errors. It also needs to be presumed that for any spectrum, $n$, for any pixel, $\lambda$, the flux $f_{n\lambda}$ can be described as some smooth function of the spectrum's labels. From \citet{ness_cannon_2015}, such a model leads to the single-pixel log-likelihood function for flux, given a set of spectral model coefficients at each $\lambda$, $\pmb\theta_\lambda$, a label vector $\pmb\ell_n$, and the intrinsic variance or scatter of the model at each $\lambda$, $s_\lambda^2$:
+\begin{equation}
+    \ln{p}\left(f_{n\lambda}|\pmb\theta_\lambda^T,\pmb\ell_n,s_\lambda^2\right)=-\frac{1}{2}\frac{\left[f_{n\lambda}-\pmb\theta_\lambda^T\cdot\pmb\ell_n\right]^2}{s_\lambda^2+\sigma_{n\lambda}^2}-\frac{1}{2}\ln\left(s_\lambda^2+\sigma_{n\lambda}^2\right)
+    \label{eq:tc-loglikelihood}
+\end{equation}
+As such, Eq. \ref{eq:tc-loglikelihood} provides a \gls{pdf} evaluation of all labels and parameters. The coefficients $[\pmb\theta_\lambda,s_\lambda^2]$ can then be solved by optimising the above likelihood over all reference objects using
+\begin{equation}
+    \pmb\theta_\lambda,s_\lambda\leftarrow\argmax_{\pmb\theta_\lambda,s_\lambda}\sum_{n=1}^N\ln{p}\left(f_{n\lambda}|\pmb\theta_\lambda^T,\pmb\ell_n,s_\lambda^2\right)
+    \label{eq:trainingloglikelihood}
+\end{equation}
+Once the training data has been processed, \tc essentially undertakes the inverse procedure for the test step. That is, it takes the exact spectral model coefficients and scatter from the training step, the entire $N_\mathrm{pix}$ spectrum of survey spectrum $m$, $f_{m\lambda}$, and optimises for the label of that spectrum:
+\begin{equation}
+    \left\{\ell_{mk}\right\}\leftarrow\argmax_{\{\ell_{mk}\}}\sum_{\lambda=1}^{N_\mathrm{pix}}\ln{p}\left(f_{m\lambda}|\pmb\theta_\lambda^T,\pmb\ell_m,s_\lambda^2\right)
+    \label{eq:testloglikelihood}
+\end{equation}
+Eq. \ref{eq:trainingloglikelihood} and Eq. \ref{eq:testloglikelihood} can therefore be seen as analogous, although it is important to note the distinction that the test step optimises over labels considering all pixels of one survey object at a time, while the training step optimises over the spectral model coefficients and scatter considering all reference objects one pixel at a time.
+
+While there are some key differences between galaxy \glspl{sed} and stellar spectra, most ostensibly in the choice of parametrisation labels, training and implementing \tc for the purposes of my thesis is thus a relatively straightforward procedure. The following chapter will explore the details of my proposed methodology. 
