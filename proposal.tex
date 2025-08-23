@@ -1,13 +1,13 @@
 \DocumentMetadata{testphase=new-or-1}
-\documentclass[11pt, a4paper]{book}
-\usepackage[palatino]{anuthesis}
-\usepackage{afterpage}
+\documentclass[11pt, a4paper, openany]{book}
+\usepackage[palatino]{Proposal/anuthesis}
 \usepackage{graphicx}
-\usepackage{thesis}
+\usepackage[acronym, toc]{glossaries}
 \usepackage[round]{natbib}
+\usepackage{upgreek}
 \usepackage[normalem]{ulem}
 \usepackage[table]{xcolor}
-\usepackage[centerlast, labelfont=bf]{caption}
+\usepackage[centerlast, font=small, labelfont=bf]{caption}
 \usepackage{float}
 \usepackage{amsmath}
 \usepackage[T1]{fontenc}
@@ -29,51 +29,50 @@
 \usepackage{cleveref}
 \usepackage{multirow}
 
+\makeatletter
+\renewcommand\mainmatter{%
+    \clearpage
+  \@mainmattertrue
+  \pagenumbering{arabic}}
+\makeatother
 
+\makeglossaries
+\loadglsentries{Proposal/glossary}
 
-
-\input{macros}            
+\input{Proposal/macros}            
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Preamble
 \title{Developing and Implementing a Training Set for a Galaxy Parametrisation Machine-Learning Algorithm}
 \author{Vernica Mehta}
 \date{\today}
 
-\renewcommand{\thepage}{\roman{page}}
-
-\makeindex
 \begin{document}
-%\doparttoc
+\frontmatter
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Title page
-\pagestyle{empty}
 \thispagestyle{empty}
-\input{titlepage}
+\input{Proposal/titlepage}
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% Abstract
-\cleardoublepage
 \pagestyle{headings}
-\input{abstract}
+\input{Proposal/abstract}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Table of contents
-\cleardoublepage
+
 \pagestyle{headings}
-\markboth{Contents}{Contents}
 \tableofcontents
+
+\glsaddall
+\printglossary[type=\acronymtype, title=List of Acronyms, toctitle=List of Acronyms, nonumberlist]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Here begins the main text
 \mainmatter
 
-%% Introduction
-\input{intro}
-
-%% Chapters
-\input{lit-review}
-\input{methodology}
-\input{timeline}
+\input{Proposal/intro}
+\input{Proposal/lit-review}
+\input{Proposal/methodology}
+\input{Proposal/timeline}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Here begins the end matter
@@ -81,9 +80,9 @@
 
 \backmatter
 
-\bibliographystyle{anuthesis}
-\bibliography{thesis}
+\bibliographystyle{Proposal/anuthesis}
+\bibliography{Proposal/thesis.bib}
 
-\input{appendix}
+\input{Proposal/appendix}
 
 \end{document}
