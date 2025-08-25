@@ -36,6 +36,7 @@ Thousands of synthetic galaxy spectra can thus be generated, building up a train
 \end{figure}
 
 \section{Training and Testing}
+
 \label{sec:training}
 
 With a training library of spectra generated, the next step will be to train \tc to learn the relationships between \gls{sfh} and the galaxy spectrum. For this to be as effective as possible, however, I would first need to optimise for the number of \glspl{ssp} forming the galaxy \gls{sfh}. This means compiling training libraries of spectra generated using different numbers of weighted bins, to determine which version results in the best performance of the model. An additional measure would be to add synthetically-generated noise to training data, in an effort to mimic real galaxy spectra. 
