@@ -68,8 +68,8 @@ class SFH():
         print("Initialising spectra...")
 
         sp = fsps.StellarPopulation(
-            sfh = 0,
-            imf_type = self.imf,
+            sfh = 0, # single stellar population
+            imf_type = self.imf, # IMF as assigned to Class
             nebemlineinspec = False # turn off nebular emission in spectrum
         )
         self.wav, self.spec = sp.get_spectrum()
