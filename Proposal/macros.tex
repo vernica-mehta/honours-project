@@ -1,12 +1,4 @@
-%      $Id: macros.tex 506 2009-10-05 16:57:07Z daniel $    
-
-\usepackage{booktabs}
-\usepackage{relsize}
 \usepackage{xspace}
-\usepackage{subfigure}
-\usepackage{listings}
-\usepackage{amsmath}
-\lstloadlanguages{python}
 
 \DeclareMathOperator*{\argmin}{argmin}
 \DeclareMathOperator*{\argmax}{argmax}
@@ -14,76 +6,3 @@
 \def\ang{$\mathring{\mathrm{A}}$\xspace}
 
 \def\tc{\textit{The Cannon}\xspace}
-
-\definecolor{tableheadcolor}{rgb}{0.8,0.8,1.0}
-\definecolor{tablealtcolor}{rgb}{0.9,0.9,1.0}
-\definecolor{tablealtcolor}{rgb}{0.9,0.9,0.95}
-
-
-\definecolor{todocolor}{rgb}{0.8,0.8,1.0}
-\definecolor{fixcolor}{rgb}{1,0.8,0.8}
-\definecolor{commentcolor}{rgb}{0.8,1.0,0.8}
-
-
-\newcommand{\listingfigure}[3]{
-\begin{figure}[ht!]
-  \begin{center}
-    \begin{minipage}[t]{\textwidth-4cm}
-      \lstinputlisting{#1}
-    \end{minipage}
-  \end{center}
-  \caption{#3}#2
-\end{figure}}
-
-\newcommand{\includeabchart}[5]{
-\begin{figure}[ht!]
-\begin{center}
-\newcommand{\atitle}{#4}
-\newcommand{\btitle}{#5}
-\input{charts/#1.tex}
-\end{center}
-\caption{#3}#2
-\end{figure}}
-
-\newcommand{\placeholderfigure}[2]{
-\begin{figure}[ht!]
-  \begin{center}
-    \resizebox{\textwidth-2cm}{0.7\textwidth-1.4cm}{todo}
-  \end{center}
-  \caption{#2}#1
-\end{figure}}
-
-\newcommand{\singlegraphfigure}[3]{
-\begin{figure}[ht!]
-  \begin{center}
-    \includegraphics[width=\textwidth-2cm]{#1}
-  \end{center}
-  \caption{#3}#2
-\end{figure}}
-
-\usepackage[color=todocolor, colorinlistoftodos]{todonotes}
-
-\lstset{
-  numbers=left,
-  numberstyle=\tiny,
-  stepnumber=1,
-  numbersep=2em,
-  language=python,                       % the language
-  basicstyle=\footnotesize\ttfamily,     % the basic font family to use
-  commentstyle=\itshape,                 % the font for comments
-  stringstyle=\ttfamily,
-%  morekeywords={@Intrinsic, @Unboxed, @RawStorage}
-}
-
-\newcommand{\textpy}[1]{{\lstset{basicstyle=\ttfamily}\lstinline@#1@}}
-\newcommand{\textpyfn}[1]{{\lstset{basicstyle=\footnotesize\ttfamily}\lstinline@#1@}}
-\usepackage{setspace}
-\usepackage{ifthen}
-
-\newcommand{\fix}[1]{\todo[color=fixcolor]{#1}}
-\newcommand{\comment}[1]{\todo[color=commentcolor]{#1}}
-\newcommand{\ifix}[1]{\todo[inline,color=fixcolor]{#1}}
-\newcommand{\icomment}[1]{\todo[inline,color=commentcolor]{#1}}
-\newcommand{\itodo}[1]{\todo[inline]{#1}}
-\newcommand{\ignore}[1]{}
-\newcommand{\mccenter}[1]{\multicolumn{1}{c|}{#1}}
