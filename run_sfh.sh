@@ -3,7 +3,7 @@
 # Usage: ./run_sfh.sh <num_galaxies> <sfh_len>
 LOGFILE="output.log"
 
-nohup python -u sfh.py "$1" "$2" > "$LOGFILE" 2>&1
+python -u sfh.py "$1" "$2" --n_jobs 20 | tee "$LOGFILE" &
 
 # Wait for the process to finish
 wait

@@ -2,8 +2,16 @@
 # Extract galaxy spectrum at particular epoch, isolated or cumulative
 # Assumes galaxy evolution from t=0 to present-day universe age
 
-# ensure fsps is in current directory and set environment variable <SPS_HOME>
+
+# Limit numpy and related libraries to 1 thread per process for better multiprocessing CPU usage
 import os
+os.environ["OMP_NUM_THREADS"] = "1"
+os.environ["OPENBLAS_NUM_THREADS"] = "1"
+os.environ["MKL_NUM_THREADS"] = "1"
+os.environ["VECLIB_MAXIMUM_THREADS"] = "1"
+os.environ["NUMEXPR_NUM_THREADS"] = "1"
+
+# ensure fsps is in current directory and set environment variable <SPS_HOME>
 if os.path.isdir('fsps'):
     os.environ['SPS_HOME'] = 'fsps'
 else:
@@ -34,13 +42,13 @@ def gen_rand_sfh(length):
     alpha = np.full(length, alpha_value)
 
     arr = np.random.dirichlet(alpha)
-    print("Random SFH generated:", arr)
+    # ...no print...
 
     return arr
 
 class SFH():
 
-    def __init__(self, sfh_weights, imf=1):
+    def __init__(self, sfh_weights, imf=1, flatten=True):
 
         """ Initialise SFH class.
 
@@ -52,7 +60,7 @@ class SFH():
             Initial mass function (default is 1 i.e. Chabrier IMF).
         """
 
-        print("Checking inputs...")
+    # ...no print...
 
         self.sfh_weights = sfh_weights
         wsum = np.sum(sfh_weights)
@@ -62,10 +70,12 @@ class SFH():
         self.imf = imf
         if imf not in [0,1,2,3,4,5]:
             raise ValueError("Invalid IMF value. Must be one of [0,1,2,3,4,5].")
-        
+
+        self.flatten = flatten
+
         self.nbins = len(sfh_weights) + 1
 
-        print("Initialising spectra...")
+    # ...no print...
 
         sp = fsps.StellarPopulation(
             sfh = 0, # single stellar population
@@ -76,7 +86,7 @@ class SFH():
         self.wav = self.wav[330:4664] # truncating dataset to 300-900 nm wavelength range
         self.spec = self.spec[:,330:4664]
 
-        print("Initialising binning...")
+    # ...no print...
 
         self.bins = np.linspace(5.5, 10.15, self.nbins)
         ages = sp.ssp_ages
@@ -88,7 +98,7 @@ class SFH():
                 if key <= self.bins[t] and key > self.bins[t - 1]:
                     self.all_spec.setdefault(self.bins[t], []).append(value)
 
-        print("Initialisation complete!")
+    # ...no print...
         pass
 
     def get_averages(self):
@@ -166,7 +176,7 @@ class SFH():
             Final spectrum of the galaxy at present-day universe age.
         """
 
-        print("Compiling spectrum...")
+    # ...no print...
 
         averages = self.get_averages()
 
@@ -174,58 +184,101 @@ class SFH():
             averages[key] *= w
 
         s = np.vstack(list(averages.values())).sum(axis=0)
-        print("Final spectrum compiled!")
+    # ...no print...
 
-        return self.wav, s
+        def moving_average(x, w):
+            """Returns the moving average of the input array."""
+            return np.convolve(x, np.ones(w), 'same') / w
 
-def churn_galaxies(n, sfh_len):
+        if self.flatten: # flatten spectrum for The Cannon
+            window = 51
+            s_flat = s / moving_average(s, window)
+            s = s_flat - np.mean(s_flat)
 
-    """ Function to churn galaxies, generating random SFHs and computing their spectra.
-    Input time in hours.
-    Generated weighted and spectra will be outputted to a .fits file.
-    """
+            # get inverse variance array from flattened spectrum
+            uncertainty = np.std(s) * np.ones_like(s)
+            variance = uncertainty**2
+            inv_var = 1.0 / variance
 
-    weights_list = []
-    s_list = []
-    
-    for i in range(0,n):
-
-        weights = gen_rand_sfh(sfh_len)
-        galaxy = SFH(weights)
-        wav, s = galaxy.final_spectrum()
-
-        weights_list.append(weights)
-        s_list.append(s)
-    
-    weights_arr = np.array(weights_list)
-    s_arr       = np.array(s_list)
-
-    col1 = fits.Column(name="SFH function", format=f"{weights_arr.shape[1]}D", array=weights_arr)
-    col2 = fits.Column(name="Spectrum", format=f"{s_arr.shape[1]}D", array=s_arr)
-
-    table_hdu = fits.BinTableHDU.from_columns([col1, col2])
-    wav_hdu   = fits.ImageHDU(data=wav, name="WAVELENGTHS")
-    hdul = fits.HDUList([fits.PrimaryHDU(), table_hdu, wav_hdu])
+        return self.wav, s, inv_var
 
 
+
+import multiprocessing
+from tqdm import tqdm
+
+def _generate_galaxy(args):
+    """Helper function to generate a single galaxy's data and return it."""
+    _, sfh_len = args
+    weights = gen_rand_sfh(sfh_len)
+    galaxy = SFH(weights)
+    wav, s, inv_var = galaxy.final_spectrum()
+    return (weights, s, inv_var, wav)
+
+def churn_galaxies(n, sfh_len, n_jobs=1):
+    """Parallel function to churn galaxies using multiprocessing, saving all results in single files. Shows progress bar."""
     now = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename  = f"sfh_{n}_{sfh_len}_{now}.fits"
-    hdul.writeto(filename, overwrite=True)
+    filename = f"sfh_{n}_{sfh_len}_{now}"
+    base = f"OUTPUTS/{filename}"
+    os.makedirs(base, exist_ok=True)
 
-    print(f".fits file generated: {filename}")
+    import sys
+    args_list = [(i, sfh_len) for i in range(n)]
+    results = []
+    isatty = sys.stdout.isatty()
+    def minimal_progress(i):
+        # Print every 10% or last, only if not interactive
+        if not isatty and ((i+1) % max(1, n//10) == 0 or (i+1) == n):
+            print(f"{i+1}/{n} galaxies generated", flush=True)
 
+    if n_jobs == 1:
+        if isatty:
+            for args in tqdm(args_list, desc="Galaxies", unit="galaxy"):
+                results.append(_generate_galaxy(args))
+        else:
+            for i, args in enumerate(args_list):
+                results.append(_generate_galaxy(args))
+                minimal_progress(i)
+    else:
+        if isatty:
+            with multiprocessing.Pool(processes=n_jobs) as pool:
+                for result in tqdm(pool.imap(_generate_galaxy, args_list), total=n, desc="Galaxies", unit="galaxy"):
+                    results.append(result)
+        else:
+            with multiprocessing.Pool(processes=n_jobs) as pool:
+                for i, result in enumerate(pool.imap(_generate_galaxy, args_list)):
+                    results.append(result)
+                    minimal_progress(i)
+
+    # Unpack results
+    weights_list, s_list, inv_var_list, wav_list = zip(*results)
+    weights_arr = np.array(weights_list)
+    s_arr = np.array(s_list)
+    inv_var_arr = np.array(inv_var_list)
+    wav_out = np.array(wav_list[0])  # All wav should be identical
+
+    # Save as before
+    weights_filename = os.path.join(base, f"{filename}_weights.fits")
+    hdu = fits.PrimaryHDU(weights_arr)
+    hdu.writeto(weights_filename, overwrite=True)
+
+    s_filename = os.path.join(base, f"{filename}_spectra.npy")
+    invvar_filename = os.path.join(base, f"{filename}_invvar.npy")
+    wav_filename = os.path.join(base, f"{filename}_wavelength.npy")
+    np.save(s_filename, s_arr)
+    np.save(invvar_filename, inv_var_arr)
+    np.save(wav_filename, wav_out)
     return
 
+
 if __name__ == "__main__":
-
     import argparse
-
     parser = argparse.ArgumentParser(description="Churn given number of galaxies, using SFH of uniform given length.")
     parser.add_argument("n", type=int, help="Number of galaxies to generate.")
     parser.add_argument("sfh_len", type=int, help="Length of uniform SFH array.")
+    parser.add_argument("--n_jobs", type=int, default=1, help="Number of parallel processes to use (default: 1)")
     args = parser.parse_args()
 
-    print("Starting churn...")
-    churn_galaxies(args.n, args.sfh_len)
+    churn_galaxies(args.n, args.sfh_len, n_jobs=args.n_jobs)
 
-# to run via terminal, use the command `./run_sfh.sh [n] [sfh_len]
+# to run via terminal, use the command `./run_sfh.sh [n] [sfh_len]`
