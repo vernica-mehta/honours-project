@@ -2,16 +2,8 @@
 # Extract galaxy spectrum at particular epoch, isolated or cumulative
 # Assumes galaxy evolution from t=0 to present-day universe age
 
-
-# Limit numpy and related libraries to 1 thread per process for better multiprocessing CPU usage
-import os
-os.environ["OMP_NUM_THREADS"] = "1"
-os.environ["OPENBLAS_NUM_THREADS"] = "1"
-os.environ["MKL_NUM_THREADS"] = "1"
-os.environ["VECLIB_MAXIMUM_THREADS"] = "1"
-os.environ["NUMEXPR_NUM_THREADS"] = "1"
-
 # ensure fsps is in current directory and set environment variable <SPS_HOME>
+import os
 if os.path.isdir('fsps'):
     os.environ['SPS_HOME'] = 'fsps'
 else:
@@ -42,7 +34,6 @@ def gen_rand_sfh(length):
     alpha = np.full(length, alpha_value)
 
     arr = np.random.dirichlet(alpha)
-    # ...no print...
 
     return arr
 
@@ -60,8 +51,6 @@ class SFH():
             Initial mass function (default is 1 i.e. Chabrier IMF).
         """
 
-    # ...no print...
-
         self.sfh_weights = sfh_weights
         wsum = np.sum(sfh_weights)
         if not np.isclose(wsum, 1.0):
@@ -75,8 +64,6 @@ class SFH():
 
         self.nbins = len(sfh_weights) + 1
 
-    # ...no print...
-
         sp = fsps.StellarPopulation(
             sfh = 0, # single stellar population
             imf_type = self.imf, # IMF as assigned to Class
@@ -85,8 +72,6 @@ class SFH():
         self.wav, self.spec = sp.get_spectrum()
         self.wav = self.wav[330:4664] # truncating dataset to 300-900 nm wavelength range
         self.spec = self.spec[:,330:4664]
-
-    # ...no print...
 
         self.bins = np.linspace(5.5, 10.15, self.nbins)
         ages = sp.ssp_ages
@@ -98,7 +83,6 @@ class SFH():
                 if key <= self.bins[t] and key > self.bins[t - 1]:
                     self.all_spec.setdefault(self.bins[t], []).append(value)
 
-    # ...no print...
         pass
 
     def get_averages(self):
@@ -176,15 +160,12 @@ class SFH():
             Final spectrum of the galaxy at present-day universe age.
         """
 
-    # ...no print...
-
         averages = self.get_averages()
 
         for key, w in zip(averages.keys(), self.sfh_weights):
             averages[key] *= w
 
         s = np.vstack(list(averages.values())).sum(axis=0)
-    # ...no print...
 
         def moving_average(x, w):
             """Returns the moving average of the input array."""
@@ -257,7 +238,6 @@ def churn_galaxies(n, sfh_len, n_jobs=1):
     inv_var_arr = np.array(inv_var_list)
     wav_out = np.array(wav_list[0])  # All wav should be identical
 
-    # Save as before
     weights_filename = os.path.join(base, f"{filename}_weights.fits")
     hdu = fits.PrimaryHDU(weights_arr)
     hdu.writeto(weights_filename, overwrite=True)
