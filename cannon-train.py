@@ -8,6 +8,7 @@ import numpy as np
 from astropy.io import fits
 from AnniesLasso.thecannon.vectorizer.polynomial import PolynomialVectorizer
 from AnniesLasso.thecannon.model import CannonModel
+from AnniesLasso.thecannon.restricted import RestrictedCannonModel
 
 # define global variable for current directory
 cwd = os.getcwd()
@@ -17,7 +18,7 @@ from sklearn.model_selection import KFold
 
 class CannonTrainer:
 
-	def __init__(self, filepath, labels):
+	def __init__(self, filepath, labels, restrict=False):
 
 		""" Initialise CannonTrainer class.
 		
@@ -31,11 +32,17 @@ class CannonTrainer:
 
 		self.filepath = filepath
 		self.labels = labels
+		self.restrict = restrict
 
 		self.training_set = fits.getdata(f"{cwd}/OUTPUTS/{self.filepath}/{self.filepath}_weights.fits")
 		self.normalised_flux = np.load(f"{cwd}/OUTPUTS/{self.filepath}/{self.filepath}_spectra.npy")
 		self.normalised_ivar = np.load(f"{cwd}/OUTPUTS/{self.filepath}/{self.filepath}_invvar.npy")
 		self.wavelengths = np.load(f"{cwd}/OUTPUTS/{self.filepath}/{self.filepath}_wavelength.npy")
+
+		if self.restrict:
+			self.theta_bounds = {}
+			for ln in self.labels:
+				self.theta_bounds[ln] = (0, 1)
 
 		self.vectorizer = PolynomialVectorizer(self.labels, 2)
 
@@ -63,7 +70,16 @@ class CannonTrainer:
 		train_ivar = self.normalised_ivar[train_idx]
 		test_flux = self.normalised_flux[test_idx]
 		test_ivar = self.normalised_ivar[test_idx]
-		model = CannonModel(train_labels, train_flux, train_ivar, vectorizer=self.vectorizer, dispersion=self.wavelengths)
+
+		if self.restrict:
+			model = RestrictedCannonModel(train_labels, train_flux, train_ivar, 
+					   vectorizer=self.vectorizer, 
+					   dispersion=self.wavelengths, 
+					   theta_bounds=self.theta_bounds)
+		else:
+			model = CannonModel(train_labels, train_flux, train_ivar, 
+					   vectorizer=self.vectorizer, dispersion=self.wavelengths)
+		
 		model.train()
 		pred_labels, *_ = model.test(test_flux, test_ivar)
 		# True labels for test set
@@ -72,8 +88,11 @@ class CannonTrainer:
 		else:
 			true_labels = self.labels_array_all[test_idx]
 		# Save
+		suffix = "_restricted" if self.restrict else ""
 		if prefix is None:
-			prefix = f"{cwd}/OUTPUTS/{self.filepath}/{self.filepath}"
+			prefix = f"{cwd}/OUTPUTS/{self.filepath}/{self.filepath}{suffix}"
+		else:
+			prefix = f"{prefix}{suffix}" if not prefix.endswith(suffix) and self.restrict else prefix
 		np.save(f"{prefix}_pred.npy", pred_labels)
 		np.save(f"{prefix}_true.npy", true_labels)
 		return pred_labels, true_labels
@@ -84,22 +103,24 @@ class CannonTrainer:
 		self._train_and_test_split(train_idx, test_idx)
 		return
 
-	def cross_validate(self, k=5, random_seed=42):
+	def cross_validate(self, k, random_seed=42):
 		"""Run k-fold cross-validation using sklearn KFold."""
 		kf = KFold(n_splits=k, shuffle=True, random_state=random_seed)
 		all_pred = []
 		all_true = []
+		suffix = "_restricted" if self.restrict else ""
 		for i, (train_idx, test_idx) in enumerate(kf.split(self.labels_array_all)):
+			fold_prefix = f"{cwd}/OUTPUTS/{self.filepath}/{self.filepath}_cv_fold{i+1}{suffix}"
 			pred_labels, true_labels = self._train_and_test_split(
 				train_idx, test_idx,
-				prefix=f"{cwd}/OUTPUTS/{self.filepath}/{self.filepath}_cv_fold{i+1}")
+				prefix=fold_prefix)
 			all_pred.append(pred_labels)
 			all_true.append(true_labels)
 			print(f"Fold {i+1}/{k}: saved predictions and true labels.")
 		all_pred = np.vstack(all_pred)
 		all_true = np.vstack(all_true)
-		np.save(f"{cwd}/OUTPUTS/{self.filepath}/{self.filepath}_cv_all_pred.npy", all_pred)
-		np.save(f"{cwd}/OUTPUTS/{self.filepath}/{self.filepath}_cv_all_true.npy", all_true)
+		np.save(f"{cwd}/OUTPUTS/{self.filepath}/{self.filepath}_cv_all_pred{suffix}.npy", all_pred)
+		np.save(f"{cwd}/OUTPUTS/{self.filepath}/{self.filepath}_cv_all_true{suffix}.npy", all_true)
 		print(f"K-fold cross-validation complete. All predictions and true labels saved.")
 		return
 
@@ -109,8 +130,9 @@ if __name__ == "__main__":
 	parser.add_argument("filepath", type=str, help="Base filename for input/output (without OUTPUTS/ prefix and extension)")
 	parser.add_argument("--labels", nargs='+', required=True, help="List of label names for training")
 	parser.add_argument("--kfold", type=int, default=0, help="Number of folds for k-fold cross-validation (0 to disable)")
+	parser.add_argument("--restrict", type=bool, default=False, help="Whether to use restricted model")
 	args = parser.parse_args()
-	trainer = CannonTrainer(args.filepath, args.labels)
+	trainer = CannonTrainer(args.filepath, args.labels, restrict=args.restrict)
 	if args.kfold and args.kfold > 1:
 		trainer.cross_validate(k=args.kfold)
 	else:

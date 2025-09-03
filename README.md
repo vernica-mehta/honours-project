@@ -14,5 +14,5 @@ nohup python3 cannon-train.py <file> --labels <labels> --kfold <folds> > output.
 
 cannon-train.py -- for a simple training and test set
 ```shell
-nohup python3 cannon-train.py <file> --labela <labels> > output.log 2>&1 &
+nohup python3 cannon-train.py <file> --labels <labels> > output.log 2>&1 &
 ```
