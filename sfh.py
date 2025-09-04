@@ -62,18 +62,18 @@ class SFH():
 
         self.flatten = flatten
 
-        self.nbins = len(sfh_weights) + 1
-
         sp = fsps.StellarPopulation(
             sfh = 0, # single stellar population
             imf_type = self.imf, # IMF as assigned to Class
             nebemlineinspec = False # turn off nebular emission in spectrum
         )
         self.wav, self.spec = sp.get_spectrum()
-        self.wav = self.wav[330:4664] # truncating dataset to 300-900 nm wavelength range
-        self.spec = self.spec[:,330:4664]
+        self.wav = self.wav[355:4588] # truncating dataset to 350-750 nm wavelength range
+        self.spec = self.spec[:,355:4588]
 
-        self.bins = np.linspace(5.5, 10.15, self.nbins)
+        bin_arr = np.r_[np.array([0.1, 20, 50, 100, 200, 500])*1e6, np.logspace(9.5, 10.15, 4)]
+        self.bins = np.log10(bin_arr)
+
         ages = sp.ssp_ages
         self.all_spec = {}
 
