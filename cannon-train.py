@@ -43,6 +43,7 @@ class CannonTrainer:
 			self.theta_bounds = {}
 			for ln in self.labels:
 				self.theta_bounds[ln] = (0, 1)
+		print(f"Theta bounds set to: {self.theta_bounds}" if self.restrict else "No theta bounds set.")
 
 		self.vectorizer = PolynomialVectorizer(self.labels, 2)
 
@@ -118,6 +119,10 @@ class CannonTrainer:
 			all_true.append(true_labels)
 			print(f"Fold {i+1}/{k}: saved predictions and true labels.")
 		all_pred = np.vstack(all_pred)
+
+		if self.restrict:
+			all_pred = all_pred / all_pred.sum(axis=1)[:, np.newaxis]
+
 		all_true = np.vstack(all_true)
 		np.save(f"{cwd}/OUTPUTS/{self.filepath}/{self.filepath}_cv_all_pred{suffix}.npy", all_pred)
 		np.save(f"{cwd}/OUTPUTS/{self.filepath}/{self.filepath}_cv_all_true{suffix}.npy", all_true)
@@ -130,7 +135,7 @@ if __name__ == "__main__":
 	parser.add_argument("filepath", type=str, help="Base filename for input/output (without OUTPUTS/ prefix and extension)")
 	parser.add_argument("--labels", nargs='+', required=True, help="List of label names for training")
 	parser.add_argument("--kfold", type=int, default=0, help="Number of folds for k-fold cross-validation (0 to disable)")
-	parser.add_argument("--restrict", type=bool, default=False, help="Whether to use restricted model")
+	parser.add_argument("--restrict", action='store_true', help="Whether to use restricted model (flag, default False)")
 	args = parser.parse_args()
 	trainer = CannonTrainer(args.filepath, args.labels, restrict=args.restrict)
 	if args.kfold and args.kfold > 1:
