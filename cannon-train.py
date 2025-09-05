@@ -8,7 +8,6 @@ import numpy as np
 from astropy.io import fits
 from AnniesLasso.thecannon.vectorizer.polynomial import PolynomialVectorizer
 from AnniesLasso.thecannon.model import CannonModel
-from AnniesLasso.thecannon.restricted import RestrictedCannonModel
 
 # define global variable for current directory
 cwd = os.getcwd()
@@ -40,10 +39,10 @@ class CannonTrainer:
 		self.wavelengths = np.load(f"{cwd}/OUTPUTS/{self.filepath}/{self.filepath}_wavelength.npy")
 
 		if self.restrict:
-			self.theta_bounds = {}
+			self.label_bounds = {}
 			for ln in self.labels:
-				self.theta_bounds[ln] = (0, 1)
-		print(f"Theta bounds set to: {self.theta_bounds}" if self.restrict else "No theta bounds set.")
+				self.label_bounds[ln] = (0, 1)
+		print(f"Label bounds set to: {self.label_bounds}" if self.restrict else "No label bounds set.")
 
 		self.vectorizer = PolynomialVectorizer(self.labels, 2)
 
@@ -72,17 +71,11 @@ class CannonTrainer:
 		test_flux = self.normalised_flux[test_idx]
 		test_ivar = self.normalised_ivar[test_idx]
 
-		if self.restrict:
-			model = RestrictedCannonModel(train_labels, train_flux, train_ivar, 
-					   vectorizer=self.vectorizer, 
-					   dispersion=self.wavelengths, 
-					   theta_bounds=self.theta_bounds)
-		else:
-			model = CannonModel(train_labels, train_flux, train_ivar, 
+		model = CannonModel(train_labels, train_flux, train_ivar, 
 					   vectorizer=self.vectorizer, dispersion=self.wavelengths)
 		
 		model.train()
-		pred_labels, *_ = model.test(test_flux, test_ivar)
+		pred_labels, *_ = model.test(test_flux, test_ivar, label_bounds=self.label_bounds if self.restrict else None)
 		# True labels for test set
 		if isinstance(self.training_set, np.ndarray) and self.training_set.dtype.names is not None:
 			true_labels = np.vstack([self.training_set[ln][test_idx] for ln in self.labels]).T
@@ -105,27 +98,49 @@ class CannonTrainer:
 		return
 
 	def cross_validate(self, k, random_seed=42):
-		"""Run k-fold cross-validation using sklearn KFold."""
+		"""Run k-fold cross-validation using sklearn KFold. Save fold files in a tar.gz archive."""
+		import tempfile
+		import shutil
+		import tarfile
 		kf = KFold(n_splits=k, shuffle=True, random_state=random_seed)
 		all_pred = []
 		all_true = []
 		suffix = "_restricted" if self.restrict else ""
-		for i, (train_idx, test_idx) in enumerate(kf.split(self.labels_array_all)):
-			fold_prefix = f"{cwd}/OUTPUTS/{self.filepath}/{self.filepath}_cv_fold{i+1}{suffix}"
-			pred_labels, true_labels = self._train_and_test_split(
-				train_idx, test_idx,
-				prefix=fold_prefix)
-			all_pred.append(pred_labels)
-			all_true.append(true_labels)
-			print(f"Fold {i+1}/{k}: saved predictions and true labels.")
-		all_pred = np.vstack(all_pred)
+		# Create a temporary directory for fold files
+		with tempfile.TemporaryDirectory() as tmpdir:
+			fold_file_paths = []
+			for i, (train_idx, test_idx) in enumerate(kf.split(self.labels_array_all)):
+				fold_prefix = os.path.join(tmpdir, f"{self.filepath}_cv_fold{i+1}{suffix}")
+				pred_labels, true_labels = self._train_and_test_split(
+					train_idx, test_idx,
+					prefix=fold_prefix)
+				all_pred.append(pred_labels)
+				all_true.append(true_labels)
+				# Record file paths for archiving
+				fold_pred_path = f"{fold_prefix}_pred.npy"
+				fold_true_path = f"{fold_prefix}_true.npy"
+				fold_file_paths.extend([fold_pred_path, fold_true_path])
+				print(f"Fold {i+1}/{k}: saved predictions and true labels.")
 
-		if self.restrict:
-			all_pred = all_pred / all_pred.sum(axis=1)[:, np.newaxis]
+			all_pred = np.vstack(all_pred)
+			if self.restrict:
+				all_pred = all_pred / all_pred.sum(axis=1)[:, np.newaxis]
+			all_true = np.vstack(all_true)
 
-		all_true = np.vstack(all_true)
-		np.save(f"{cwd}/OUTPUTS/{self.filepath}/{self.filepath}_cv_all_pred{suffix}.npy", all_pred)
-		np.save(f"{cwd}/OUTPUTS/{self.filepath}/{self.filepath}_cv_all_true{suffix}.npy", all_true)
+			# Save all_pred and all_true directly to output folder
+			out_pred = f"{cwd}/OUTPUTS/{self.filepath}/{self.filepath}_cv_all_pred{suffix}.npy"
+			out_true = f"{cwd}/OUTPUTS/{self.filepath}/{self.filepath}_cv_all_true{suffix}.npy"
+			np.save(out_pred, all_pred)
+			np.save(out_true, all_true)
+
+			# Archive all fold files into a tar.gz in the output folder
+			tar_path = f"{cwd}/OUTPUTS/{self.filepath}/{self.filepath}_cv_folds{suffix}.tar.gz"
+			with tarfile.open(tar_path, "w:gz") as tar:
+				for file_path in fold_file_paths:
+					arcname = os.path.basename(file_path)
+					tar.add(file_path, arcname=arcname)
+			print(f"All fold files archived to {tar_path}.")
+
 		print(f"K-fold cross-validation complete. All predictions and true labels saved.")
 		return
 

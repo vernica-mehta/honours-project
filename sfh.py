@@ -260,5 +260,3 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     churn_galaxies(args.n, args.sfh_len, n_jobs=args.n_jobs)
-
-# to run via terminal, use the command `./run_sfh.sh [n] [sfh_len]`
