@@ -3,4 +3,4 @@
 	url = git@github.com:cconroy20/fsps.git
 [submodule "AnniesLasso"]
 	path = AnniesLasso
-	url = https://github.com/andycasey/AnniesLasso.git
+	url = git@github.com:vernica-mehta/AnniesLasso.git
