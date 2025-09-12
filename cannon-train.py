@@ -30,19 +30,24 @@ class CannonTrainer:
 		"""
 
 		self.filepath = filepath
-		self.labels = labels
 		self.restrict = restrict
+		self.labels = labels
 
-		self.training_set = fits.getdata(f"{cwd}/OUTPUTS/{self.filepath}/{self.filepath}_weights.fits")
+		if self.restrict:
+
+			data = fits.getdata(f"{cwd}/OUTPUTS/{self.filepath}/{self.filepath}_weights.fits")
+			if data.dtype.names is not None:
+				# Structured array: take log10 of each column
+				self.training_set = np.vstack([np.log10(data[ln]) for ln in self.labels]).T
+			else:
+				# Regular ndarray
+				self.training_set = np.log10(data)
+		else:
+			self.training_set = fits.getdata(f"{cwd}/OUTPUTS/{self.filepath}/{self.filepath}_weights.fits")
+
 		self.normalised_flux = np.load(f"{cwd}/OUTPUTS/{self.filepath}/{self.filepath}_spectra.npy")
 		self.normalised_ivar = np.load(f"{cwd}/OUTPUTS/{self.filepath}/{self.filepath}_invvar.npy")
 		self.wavelengths = np.load(f"{cwd}/OUTPUTS/{self.filepath}/{self.filepath}_wavelength.npy")
-
-		if self.restrict:
-			self.label_bounds = {}
-			for ln in self.labels:
-				self.label_bounds[ln] = (0, 1)
-		print(f"Label bounds set to: {self.label_bounds}" if self.restrict else "No label bounds set.")
 
 		self.vectorizer = PolynomialVectorizer(self.labels, 2)
 
@@ -75,12 +80,13 @@ class CannonTrainer:
 					   vectorizer=self.vectorizer, dispersion=self.wavelengths)
 		
 		model.train()
-		pred_labels, *_ = model.test(test_flux, test_ivar, label_bounds=self.label_bounds if self.restrict else None)
+		pred_labels, *_ = model.test(test_flux, test_ivar)
 		# True labels for test set
 		if isinstance(self.training_set, np.ndarray) and self.training_set.dtype.names is not None:
 			true_labels = np.vstack([self.training_set[ln][test_idx] for ln in self.labels]).T
 		else:
 			true_labels = self.labels_array_all[test_idx]
+
 		# Save
 		suffix = "_restricted" if self.restrict else ""
 		if prefix is None:
@@ -89,7 +95,7 @@ class CannonTrainer:
 			prefix = f"{prefix}{suffix}" if not prefix.endswith(suffix) and self.restrict else prefix
 		np.save(f"{prefix}_pred.npy", pred_labels)
 		np.save(f"{prefix}_true.npy", true_labels)
-		return pred_labels, true_labels
+		return (pred_labels, true_labels)
 
 	def train_and_test(self):
 		train_idx = np.where(self.train_set)[0]
@@ -122,9 +128,12 @@ class CannonTrainer:
 				fold_file_paths.extend([fold_pred_path, fold_true_path])
 				print(f"Fold {i+1}/{k}: saved predictions and true labels.")
 
-			all_pred = np.vstack(all_pred)
 			if self.restrict:
-				all_pred = all_pred / all_pred.sum(axis=1)[:, np.newaxis]
+				all_pred = [10**pred for pred in all_pred]
+				all_true = [10**true for true in all_true]
+
+			all_pred = [pred / pred.sum(axis=1)[:, np.newaxis] for pred in all_pred]
+			all_pred = np.vstack(all_pred)
 			all_true = np.vstack(all_true)
 
 			# Save all_pred and all_true directly to output folder

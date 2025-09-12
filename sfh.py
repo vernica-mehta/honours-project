@@ -68,8 +68,8 @@ class SFH():
             nebemlineinspec = False # turn off nebular emission in spectrum
         )
         self.wav, self.spec = sp.get_spectrum()
-        self.wav = self.wav[355:4588] # truncating dataset to 350-750 nm wavelength range
-        self.spec = self.spec[:,355:4588]
+        self.wav = self.wav[470:2692] # truncating dataset to 370-570 nm wavelength range
+        self.spec = self.spec[:,470:2692]
 
         bin_arr = np.r_[np.array([0.1, 20, 50, 100, 200, 500])*1e6, np.logspace(9.5, 10.15, 4)]
         self.bins = np.log10(bin_arr)
@@ -172,9 +172,9 @@ class SFH():
             return np.convolve(x, np.ones(w), 'same') / w
 
         if self.flatten: # flatten spectrum for The Cannon
-            window = 51
+            window = 100
             s_flat = s / moving_average(s, window)
-            s = s_flat - np.mean(s_flat)
+            s = s_flat * moving_average(np.ones_like(s), window) # dealing with edges
 
             # get inverse variance array from flattened spectrum
             uncertainty = np.std(s) * np.ones_like(s)
