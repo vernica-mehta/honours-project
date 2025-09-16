@@ -1,6 +1,9 @@
 import numpy as np
+import pandas as pd
 from sklearn.metrics import mean_squared_error
 import matplotlib.pyplot as plt
+from scipy.stats import ttest_rel
+import bstrap
 plt.style.use('custom.mplstyle')
 from sfh import SFH
 
@@ -146,7 +149,6 @@ class CompareModels:
         return None
 
     def compare_rmse(self):
-        import pandas as pd
         rmse_restricted, overall_restricted = self.restricted_data.rmse()
         rmse_unrestricted, overall_unrestricted = self.unrestricted_data.rmse()
         labels = [f"{j+1}" for j in range(len(rmse_restricted))] + ["Overall"]
@@ -157,9 +159,54 @@ class CompareModels:
             "Restricted": restricted_vals,
             "Unrestricted": unrestricted_vals
         })
-        print("RMSE Comparison (all plots):")
-        print(df.to_string(index=False))
-        return None
+        # print("RMSE Comparison (all plots):")
+        # print(df.to_string(index=False))
+        return df
+    
+    def t_test(self):
+
+        res_pvalues = []
+        unres_pvalues = []
+
+        for i in range(10):
+            pred_res = self.restricted_data.pred_clean[:,i]
+            pres_unres = self.unrestricted_data.pred_clean[:,i]
+            real = self.restricted_data.true_clean[:,i]
+
+            t_res, p_res = ttest_rel(pred_res, real)
+            t_unres, p_unres = ttest_rel(pres_unres, real)
+            res_pvalues.append(p_res)
+            unres_pvalues.append(p_unres)
+
+        df = pd.DataFrame({
+            "Label": range(1,11),
+            "Restricted": res_pvalues,
+            "Unrestricted": unres_pvalues
+        })
+
+        return df
+    
+    def bootstrap(self, metric=np.mean, nbr_runs=1000):
+        res_pvals = []
+        unres_pvals = []
+
+        for i in range(10):
+            real = pd.DataFrame(self.restricted_data.true_clean[:,i])
+            pred_res = pd.DataFrame(self.restricted_data.pred_clean[:,i])
+            pred_unres = pd.DataFrame(self.unrestricted_data.pred_clean[:,i])
+
+            m1, m2, pval_res = bstrap.bootstrap(metric, real, pred_res, nbr_runs=nbr_runs)
+            m1, m2, pval_unres = bstrap.bootstrap(metric, real, pred_unres, nbr_runs=nbr_runs)
+            res_pvals.append(pval_res)
+            unres_pvals.append(pval_unres)
+
+        df = pd.DataFrame({
+            'Label': range(1, 11),
+            'Restricted': res_pvals,
+            'Unrestricted': unres_pvals
+        })
+
+        return df
 
     @property
     def compare_rmse_n(self):
