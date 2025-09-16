@@ -9,3 +9,4 @@ __pycache__/
 matplotlibrc.py
 *.npy
 *.tar.gz
+*.mplstyle

@@ -17,7 +17,7 @@ from sklearn.model_selection import KFold
 
 class CannonTrainer:
 
-	def __init__(self, filepath, labels, restrict=False):
+	def __init__(self, filepath, restrict=False):
 
 		""" Initialise CannonTrainer class.
 		
@@ -31,7 +31,7 @@ class CannonTrainer:
 
 		self.filepath = filepath
 		self.restrict = restrict
-		self.labels = labels
+		self.labels = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]
 
 		if self.restrict:
 
@@ -157,11 +157,10 @@ if __name__ == "__main__":
 	import argparse
 	parser = argparse.ArgumentParser(description="Train The Cannon on galaxy spectra.")
 	parser.add_argument("filepath", type=str, help="Base filename for input/output (without OUTPUTS/ prefix and extension)")
-	parser.add_argument("--labels", nargs='+', required=True, help="List of label names for training")
 	parser.add_argument("--kfold", type=int, default=0, help="Number of folds for k-fold cross-validation (0 to disable)")
 	parser.add_argument("--restrict", action='store_true', help="Whether to use restricted model (flag, default False)")
 	args = parser.parse_args()
-	trainer = CannonTrainer(args.filepath, args.labels, restrict=args.restrict)
+	trainer = CannonTrainer(args.filepath, restrict=args.restrict)
 	if args.kfold and args.kfold > 1:
 		trainer.cross_validate(k=args.kfold)
 	else:
