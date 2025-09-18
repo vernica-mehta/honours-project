@@ -10,3 +10,4 @@ matplotlibrc.py
 *.npy
 *.tar.gz
 *.mplstyle
+*.out
