@@ -14,8 +14,8 @@ cannon-train.py -- to do k-fold cross-validation
 nohup python3 cannon-train.py <file> --kfold <folds> > output.log 2>&1 &
 ```
 
-cannon-train.py -- for a simple training and test set
+trainingsettest.py -- train and test cannon model against test set of set size
 
 ```shell
-nohup python3 cannon-train.py <file> > output.log 2>&1 &
+nohup python3 trainingsettest.py <file> <size> > output.log 2>&1 &
 ```
