@@ -39,7 +39,7 @@ def gen_rand_sfh(length):
 
 class SFH():
 
-    def __init__(self, sfh_weights, imf=1, flatten=True):
+    def __init__(self, sfh_weights, imf=1, flatten=False):
 
         """ Initialise SFH class.
 
@@ -181,7 +181,10 @@ class SFH():
             variance = uncertainty**2
             inv_var = 1.0 / variance
 
-        return self.wav, s, inv_var
+            return self.wav, s, inv_var
+
+        else:
+            return self.wav, s, None
 
 
 
@@ -235,7 +238,7 @@ def churn_galaxies(n, sfh_len, n_jobs=1):
     weights_list, s_list, inv_var_list, wav_list = zip(*results)
     weights_arr = np.array(weights_list)
     s_arr = np.array(s_list)
-    inv_var_arr = np.array(inv_var_list)
+    inv_var_arr = np.array(inv_var_list) if inv_var_list is not None else None
     wav_out = np.array(wav_list[0])  # All wav should be identical
 
     weights_filename = os.path.join(base, f"{filename}_weights.fits")
@@ -243,10 +246,11 @@ def churn_galaxies(n, sfh_len, n_jobs=1):
     hdu.writeto(weights_filename, overwrite=True)
 
     s_filename = os.path.join(base, f"{filename}_spectra.npy")
-    invvar_filename = os.path.join(base, f"{filename}_invvar.npy")
+    invvar_filename = os.path.join(base, f"{filename}_invvar.npy") if inv_var_arr is not None else None
     wav_filename = os.path.join(base, f"{filename}_wavelength.npy")
     np.save(s_filename, s_arr)
-    np.save(invvar_filename, inv_var_arr)
+    if invvar_filename is not None:
+        np.save(invvar_filename, inv_var_arr)
     np.save(wav_filename, wav_out)
     return
 

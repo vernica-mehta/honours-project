@@ -12,12 +12,9 @@ from AnniesLasso.thecannon.model import CannonModel
 # define global variable for current directory
 cwd = os.getcwd()
 
-from sklearn.model_selection import KFold
-
-
 class CannonTrainer:
 
-	def __init__(self, filepath, restrict=False):
+	def __init__(self, filepath, snr=None):
 
 		""" Initialise CannonTrainer class.
 		
@@ -30,23 +27,21 @@ class CannonTrainer:
 		"""
 
 		self.filepath = filepath
-		self.restrict = restrict
 		self.labels = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]
+		self.snr = snr
 
-		if self.restrict:
-
-			data = fits.getdata(f"{cwd}/OUTPUTS/{self.filepath}/{self.filepath}_weights.fits")
-			if data.dtype.names is not None:
-				# Structured array: take log10 of each column
-				self.training_set = np.vstack([np.log10(data[ln]) for ln in self.labels]).T
-			else:
-				# Regular ndarray
-				self.training_set = np.log10(data)
+		data = fits.getdata(f"{cwd}/OUTPUTS/{self.filepath}/{self.filepath}_weights.fits")
+		if data.dtype.names is not None:
+			# Structured array: take log10 of each column
+			self.training_set = np.vstack([np.log10(data[ln]) for ln in self.labels]).T
 		else:
-			self.training_set = fits.getdata(f"{cwd}/OUTPUTS/{self.filepath}/{self.filepath}_weights.fits")
+			# Regular ndarray
+			self.training_set = np.log10(data)
 
-		self.normalised_flux = np.load(f"{cwd}/OUTPUTS/{self.filepath}/{self.filepath}_spectra.npy")
-		self.normalised_ivar = np.load(f"{cwd}/OUTPUTS/{self.filepath}/{self.filepath}_invvar.npy")
+		self.flux_exact = np.load(f"{cwd}/OUTPUTS/{self.filepath}/{self.filepath}_snr_spectra.npy")
+		self.flux_noisy = np.load(f"{cwd}/OUTPUTS/{self.filepath}/{self.filepath}_snr{int(self.snr) if self.snr is not None else ''}_spectra.npy")
+		self.ivar_exact = np.load(f"{cwd}/OUTPUTS/{self.filepath}/{self.filepath}_snr_invvar.npy")
+		self.ivar_noisy = np.load(f"{cwd}/OUTPUTS/{self.filepath}/{self.filepath}_snr{int(self.snr) if self.snr is not None else ''}_invvar.npy")
 		self.wavelengths = np.load(f"{cwd}/OUTPUTS/{self.filepath}/{self.filepath}_wavelength.npy")
 
 		self.vectorizer = PolynomialVectorizer(self.labels, 2)
@@ -59,22 +54,28 @@ class CannonTrainer:
 			if self.labels_array_all.ndim == 1:
 				self.labels_array_all = self.labels_array_all.reshape(-1, len(self.labels))
 
-		# Default: single train/test split as before
-		q = np.random.randint(0, len(self.labels), len(self.training_set)) % 10
-		self.test_set = (q == 1)
-		self.train_set = (q != 1)
-		self.labels_array = self.labels_array_all[self.train_set]
-
 		return None
 
+	def _iter_manual_kfold(self, k):
+		"""Yield (i, train_idx, test_idx) using the same manual scheme as kfold_train."""
+		n = len(self.labels_array_all)
+		block_size = max(1, n // k)
+		for i in range(k):
+			start = i * block_size
+			end = (i + 1) * block_size if i < (k - 1) else n
+			if start >= n:
+				break
+			train_idx = np.arange(start, min(end, n))
+			test_idx = np.concatenate([np.arange(0, start), np.arange(min(end, n), n)])
+			yield i, train_idx, test_idx
 
 	def _train_and_test_split(self, train_idx, test_idx, prefix=None):
 		"""Helper to train and test model on given indices, save results."""
 		train_labels = self.labels_array_all[train_idx]
-		train_flux = self.normalised_flux[train_idx]
-		train_ivar = self.normalised_ivar[train_idx]
-		test_flux = self.normalised_flux[test_idx]
-		test_ivar = self.normalised_ivar[test_idx]
+		train_flux = self.flux_exact[train_idx]
+		train_ivar = self.ivar_exact[train_idx]
+		test_flux = self.flux_noisy[test_idx]
+		test_ivar = self.ivar_noisy[test_idx]
 
 		model = CannonModel(train_labels, train_flux, train_ivar, 
 					   vectorizer=self.vectorizer, dispersion=self.wavelengths)
@@ -88,35 +89,34 @@ class CannonTrainer:
 			true_labels = self.labels_array_all[test_idx]
 
 		# Save
-		suffix = "_restricted" if self.restrict else ""
-		if prefix is None:
-			prefix = f"{cwd}/OUTPUTS/{self.filepath}/{self.filepath}{suffix}"
-		else:
-			prefix = f"{prefix}{suffix}" if not prefix.endswith(suffix) and self.restrict else prefix
+		prefix = prefix if prefix != None else f"{cwd}/OUTPUTS/{self.filepath}/snr{int(self.snr) if self.snr is not None else ''}"
 		np.save(f"{prefix}_pred.npy", pred_labels)
 		np.save(f"{prefix}_true.npy", true_labels)
 		return (pred_labels, true_labels)
 
+	def kfold_train(self):
+		"""Manual k-fold using contiguous blocks for training and the rest for testing."""
+		for i, train_idx, test_idx in self._iter_manual_kfold(10):
+			start, end = train_idx[0], train_idx[-1] + 1
+			print(f"Fold {i+1}: train [{start}:{end}), test {len(test_idx)}")
+			self._train_and_test_split(train_idx, test_idx)
+
 	def train_and_test(self):
-		train_idx = np.where(self.train_set)[0]
-		test_idx = np.where(self.test_set)[0]
-		self._train_and_test_split(train_idx, test_idx)
+		self.kfold_train()
 		return
 
 	def cross_validate(self, k, random_seed=42):
-		"""Run k-fold cross-validation using sklearn KFold. Save fold files in a tar.gz archive."""
+		"""Run k-fold cross-validation using the same manual scheme as kfold_train."""
 		import tempfile
 		import shutil
 		import tarfile
-		kf = KFold(n_splits=k, shuffle=True, random_state=random_seed)
 		all_pred = []
 		all_true = []
-		suffix = "_restricted" if self.restrict else ""
 		# Create a temporary directory for fold files
 		with tempfile.TemporaryDirectory() as tmpdir:
 			fold_file_paths = []
-			for i, (train_idx, test_idx) in enumerate(kf.split(self.labels_array_all)):
-				fold_prefix = os.path.join(tmpdir, f"{self.filepath}_cv_fold{i+1}{suffix}")
+			for i, (train_idx, test_idx) in ((i, (tr, te)) for i, tr, te in self._iter_manual_kfold(k)):
+				fold_prefix = os.path.join(tmpdir, f"{self.filepath}_snr{int(self.snr) if self.snr is not None else ''}_fold{i+1}")
 				pred_labels, true_labels = self._train_and_test_split(
 					train_idx, test_idx,
 					prefix=fold_prefix)
@@ -128,22 +128,21 @@ class CannonTrainer:
 				fold_file_paths.extend([fold_pred_path, fold_true_path])
 				print(f"Fold {i+1}/{k}: saved predictions and true labels.")
 
-			if self.restrict:
-				all_pred = [10**pred for pred in all_pred]
-				all_true = [10**true for true in all_true]
+			all_pred = [10**pred for pred in all_pred]
+			all_true = [10**true for true in all_true]
 
 			all_pred = [pred / pred.sum(axis=1)[:, np.newaxis] for pred in all_pred]
 			all_pred = np.vstack(all_pred)
 			all_true = np.vstack(all_true)
 
 			# Save all_pred and all_true directly to output folder
-			out_pred = f"{cwd}/OUTPUTS/{self.filepath}/{self.filepath}_cv_all_pred{suffix}.npy"
-			out_true = f"{cwd}/OUTPUTS/{self.filepath}/{self.filepath}_cv_all_true{suffix}.npy"
+			out_pred = f"{cwd}/OUTPUTS/{self.filepath}/snr_{int(self.snr) if self.snr is not None else ''}_all_pred.npy"
+			out_true = f"{cwd}/OUTPUTS/{self.filepath}/snr_{int(self.snr) if self.snr is not None else ''}_all_true.npy"
 			np.save(out_pred, all_pred)
 			np.save(out_true, all_true)
 
 			# Archive all fold files into a tar.gz in the output folder
-			tar_path = f"{cwd}/OUTPUTS/{self.filepath}/{self.filepath}_cv_folds{suffix}.tar.gz"
+			tar_path = f"{cwd}/OUTPUTS/{self.filepath}/snr_{int(self.snr) if self.snr is not None else ''}_folds.tar.gz"
 			with tarfile.open(tar_path, "w:gz") as tar:
 				for file_path in fold_file_paths:
 					arcname = os.path.basename(file_path)
@@ -158,9 +157,9 @@ if __name__ == "__main__":
 	parser = argparse.ArgumentParser(description="Train The Cannon on galaxy spectra.")
 	parser.add_argument("filepath", type=str, help="Base filename for input/output (without OUTPUTS/ prefix and extension)")
 	parser.add_argument("--kfold", type=int, default=0, help="Number of folds for k-fold cross-validation (0 to disable)")
-	parser.add_argument("--restrict", action='store_true', help="Whether to use restricted model (flag, default False)")
+	parser.add_argument("--snr", type=float, default=None, help="Signal-to-noise ratio used for noisy spectra (None for exact spectra)")
 	args = parser.parse_args()
-	trainer = CannonTrainer(args.filepath, restrict=args.restrict)
+	trainer = CannonTrainer(args.filepath, snr=args.snr)
 	if args.kfold and args.kfold > 1:
 		trainer.cross_validate(k=args.kfold)
 	else:

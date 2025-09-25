@@ -8,6 +8,11 @@ sfh.py
 nohup python3 -u sfh.py <n> <sfh_len> --n_jobs 20 > output.log 2>&1 &
 ```
 
+snr.py -- add noise to already generated synthetic spectra sets
+```shell
+python3 snr.py <file> <snr>
+```
+
 cannon-train.py -- to do k-fold cross-validation
 
 ```shell
