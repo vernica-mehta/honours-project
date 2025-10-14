@@ -30,7 +30,7 @@ class CannonTrainer:
 		self.labels = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]
 		self.snr = snr
 
-		data = fits.getdata(f"{cwd}/OUTPUTS/{self.filepath}/{self.filepath}_weights.fits")
+		data = fits.getdata(f"/data/mustard/vmehta/{self.filepath}/{self.filepath}_weights.fits")
 		if data.dtype.names is not None:
 			# Structured array: take log10 of each column
 			self.training_set = np.vstack([np.log10(data[ln]) for ln in self.labels]).T
@@ -38,11 +38,11 @@ class CannonTrainer:
 			# Regular ndarray
 			self.training_set = np.log10(data)
 
-		self.flux_exact = np.load(f"{cwd}/OUTPUTS/{self.filepath}/{self.filepath}_snr_spectra.npy")
-		self.flux_noisy = np.load(f"{cwd}/OUTPUTS/{self.filepath}/{self.filepath}_snr{int(self.snr) if self.snr is not None else ''}_spectra.npy")
-		self.ivar_exact = np.load(f"{cwd}/OUTPUTS/{self.filepath}/{self.filepath}_snr_invvar.npy")
-		self.ivar_noisy = np.load(f"{cwd}/OUTPUTS/{self.filepath}/{self.filepath}_snr{int(self.snr) if self.snr is not None else ''}_invvar.npy")
-		self.wavelengths = np.load(f"{cwd}/OUTPUTS/{self.filepath}/{self.filepath}_wavelength.npy")
+		self.flux_exact = np.load(f"/data/mustard/vmehta/{self.filepath}/{self.filepath}_snr_spectra.npy")
+		self.flux_noisy = np.load(f"/data/mustard/vmehta/{self.filepath}/{self.filepath}_snr{int(self.snr) if self.snr is not None else ''}_spectra.npy")
+		self.ivar_exact = np.load(f"/data/mustard/vmehta/{self.filepath}/{self.filepath}_snr_invvar.npy")
+		self.ivar_noisy = np.load(f"/data/mustard/vmehta/{self.filepath}/{self.filepath}_snr{int(self.snr) if self.snr is not None else ''}_invvar.npy")
+		self.wavelengths = np.load(f"/data/mustard/vmehta/{self.filepath}/{self.filepath}_wavelength.npy")
 
 		self.vectorizer = PolynomialVectorizer(self.labels, 2)
 
@@ -89,9 +89,17 @@ class CannonTrainer:
 			true_labels = self.labels_array_all[test_idx]
 
 		# Save
-		prefix = prefix if prefix != None else f"{cwd}/OUTPUTS/{self.filepath}/snr{int(self.snr) if self.snr is not None else ''}"
+		prefix = prefix if prefix != None else f"/data/mustard/vmehta/{self.filepath}/snr{int(self.snr) if self.snr is not None else ''}"
 		np.save(f"{prefix}_pred.npy", pred_labels)
 		np.save(f"{prefix}_true.npy", true_labels)
+		
+		# Save the trained model
+		import pickle
+		model_path = f"{prefix}_model.pkl"
+		with open(model_path, 'wb') as f:
+			pickle.dump(model, f)
+		print(f"Trained model saved to: {model_path}")
+		
 		return (pred_labels, true_labels)
 
 	def kfold_train(self):
@@ -125,8 +133,9 @@ class CannonTrainer:
 				# Record file paths for archiving
 				fold_pred_path = f"{fold_prefix}_pred.npy"
 				fold_true_path = f"{fold_prefix}_true.npy"
-				fold_file_paths.extend([fold_pred_path, fold_true_path])
-				print(f"Fold {i+1}/{k}: saved predictions and true labels.")
+				fold_model_path = f"{fold_prefix}_model.pkl"
+				fold_file_paths.extend([fold_pred_path, fold_true_path, fold_model_path])
+				print(f"Fold {i+1}/{k}: saved predictions, true labels, and trained model.")
 
 			all_pred = [10**pred for pred in all_pred]
 			all_true = [10**true for true in all_true]
@@ -136,13 +145,13 @@ class CannonTrainer:
 			all_true = np.vstack(all_true)
 
 			# Save all_pred and all_true directly to output folder
-			out_pred = f"{cwd}/OUTPUTS/{self.filepath}/snr_{int(self.snr) if self.snr is not None else ''}_all_pred.npy"
-			out_true = f"{cwd}/OUTPUTS/{self.filepath}/snr_{int(self.snr) if self.snr is not None else ''}_all_true.npy"
+			out_pred = f"/data/mustard/vmehta/{self.filepath}/snr_{int(self.snr) if self.snr is not None else ''}_all_pred.npy"
+			out_true = f"/data/mustard/vmehta/{self.filepath}/snr_{int(self.snr) if self.snr is not None else ''}_all_true.npy"
 			np.save(out_pred, all_pred)
 			np.save(out_true, all_true)
 
 			# Archive all fold files into a tar.gz in the output folder
-			tar_path = f"{cwd}/OUTPUTS/{self.filepath}/snr_{int(self.snr) if self.snr is not None else ''}_folds.tar.gz"
+			tar_path = f"/data/mustard/vmehta/{self.filepath}/snr_{int(self.snr) if self.snr is not None else ''}_folds.tar.gz"
 			with tarfile.open(tar_path, "w:gz") as tar:
 				for file_path in fold_file_paths:
 					arcname = os.path.basename(file_path)

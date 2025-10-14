@@ -1,7 +1,6 @@
 import numpy as np
 import os
 
-cwd = os.getcwd()
 
 class SNR:
 
@@ -15,17 +14,17 @@ class SNR:
     def add_noise(self):
 
         if self.snr == None:
-            return self.spectrum
+            return self.spectrum, np.full_like(self.spectrum, 1e-15)
         
-        signal_power = np.mean(self.spectrum**2)
-        noise_power = signal_power / (10**(self.snr/10))
-        noise = np.random.normal(0, np.sqrt(noise_power), self.spectrum.shape)
+        noise = np.mean(self.spectrum) / self.snr
+        spec_noise = np.random.normal(self.spectrum, noise)
+        noise_array = np.full_like(self.spectrum, noise)
 
-        return self.spectrum + noise
+        return spec_noise, noise_array
 
     def flatten_spectrum(self):
 
-        s = self.add_noise()
+        s, n = self.add_noise()
 
         def moving_average(x, w):
             """Returns the moving average of the input array."""
@@ -36,9 +35,9 @@ class SNR:
         final_s = s_flat * moving_average(np.ones_like(s), window) # dealing with edges
 
         # get inverse variance array from flattened spectrum
-        uncertainty = np.std(final_s) * np.ones_like(final_s)
-        variance = uncertainty**2
-        inv_var = 1.0 / variance
+        n_flat = n / moving_average(s, window)
+        final_n = n_flat * moving_average(np.ones_like(s), window) # dealing with edges
+        inv_var = 1.0 / (final_n**2)
 
         return final_s, inv_var
     
@@ -46,7 +45,7 @@ def snr_worker(filepath, snr=None):
 
     s_list = []
     inv_list = []
-    spectra_all = np.load(f"{cwd}/OUTPUTS/{filepath}/{filepath}_spectra.npy")
+    spectra_all = np.load(f"/data/mustard/vmehta/{filepath}/{filepath}_spectra.npy")
     
     for s in spectra_all:
         s_instance = SNR(s, snr)
@@ -71,6 +70,6 @@ if __name__ == "__main__":
     
     s_array, inv_array = snr_worker(args.filepath, args.snr)
     n = int(args.snr) if args.snr is not None else ''
-    np.save(f"{cwd}/OUTPUTS/{args.filepath}/{args.filepath}_snr{n}_spectra.npy", s_array)
-    np.save(f"{cwd}/OUTPUTS/{args.filepath}/{args.filepath}_snr{n}_invvar.npy", inv_array)
+    np.save(f"/data/mustard/vmehta/{args.filepath}/{args.filepath}_snr{n}_spectra.npy", s_array)
+    np.save(f"/data/mustard/vmehta/{args.filepath}/{args.filepath}_snr{n}_invvar.npy", inv_array)
     print(f"Saved flattened spectra and inverse variance arrays with SNR={n}.")
