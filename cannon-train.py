@@ -6,6 +6,7 @@
 import os
 import numpy as np
 from astropy.io import fits
+import pickle
 from AnniesLasso.thecannon.vectorizer.polynomial import PolynomialVectorizer
 from AnniesLasso.thecannon.model import CannonModel
 
@@ -69,7 +70,7 @@ class CannonTrainer:
 			test_idx = np.concatenate([np.arange(0, start), np.arange(min(end, n), n)])
 			yield i, train_idx, test_idx
 
-	def _train_and_test_split(self, train_idx, test_idx, prefix=None):
+	def _train_and_test_split(self, train_idx, test_idx, prefix=None, save_model_file=True):
 		"""Helper to train and test model on given indices, save results."""
 		train_labels = self.labels_array_all[train_idx]
 		train_flux = self.flux_exact[train_idx]
@@ -88,19 +89,20 @@ class CannonTrainer:
 		else:
 			true_labels = self.labels_array_all[test_idx]
 
-		# Save
+		# Save predictions/true labels
 		prefix = prefix if prefix != None else f"/data/mustard/vmehta/{self.filepath}/snr{int(self.snr) if self.snr is not None else ''}"
 		np.save(f"{prefix}_pred.npy", pred_labels)
 		np.save(f"{prefix}_true.npy", true_labels)
 		
-		# Save the trained model
-		import pickle
-		model_path = f"{prefix}_model.pkl"
-		with open(model_path, 'wb') as f:
-			pickle.dump(model, f)
-		print(f"Trained model saved to: {model_path}")
+		# Optionally save the trained model (per-fold). Default is True for compatibility.
+		if save_model_file:
+			import pickle
+			model_path = f"{prefix}_model.pkl"
+			with open(model_path, 'wb') as f:
+				pickle.dump(model, f)
+			print(f"Trained model saved to: {model_path}")
 		
-		return (pred_labels, true_labels)
+		return (pred_labels, true_labels, model)
 
 	def kfold_train(self):
 		"""Manual k-fold using contiguous blocks for training and the rest for testing."""
@@ -120,22 +122,26 @@ class CannonTrainer:
 		import tarfile
 		all_pred = []
 		all_true = []
+		all_models = []
+		fold_indices = []
 		# Create a temporary directory for fold files
 		with tempfile.TemporaryDirectory() as tmpdir:
 			fold_file_paths = []
 			for i, (train_idx, test_idx) in ((i, (tr, te)) for i, tr, te in self._iter_manual_kfold(k)):
 				fold_prefix = os.path.join(tmpdir, f"{self.filepath}_snr{int(self.snr) if self.snr is not None else ''}_fold{i+1}")
-				pred_labels, true_labels = self._train_and_test_split(
+				pred_labels, true_labels, model = self._train_and_test_split(
 					train_idx, test_idx,
-					prefix=fold_prefix)
+					prefix=fold_prefix,
+					save_model_file=False)
 				all_pred.append(pred_labels)
 				all_true.append(true_labels)
+				all_models.append(model)
+				fold_indices.append({"fold": i+1, "train_idx": train_idx.tolist(), "test_idx": test_idx.tolist()})
 				# Record file paths for archiving
 				fold_pred_path = f"{fold_prefix}_pred.npy"
 				fold_true_path = f"{fold_prefix}_true.npy"
-				fold_model_path = f"{fold_prefix}_model.pkl"
-				fold_file_paths.extend([fold_pred_path, fold_true_path, fold_model_path])
-				print(f"Fold {i+1}/{k}: saved predictions, true labels, and trained model.")
+				fold_file_paths.extend([fold_pred_path, fold_true_path])
+				print(f"Fold {i+1}/{k}: saved predictions and true labels.")
 
 			all_pred = [10**pred for pred in all_pred]
 			all_true = [10**true for true in all_true]
@@ -150,7 +156,7 @@ class CannonTrainer:
 			np.save(out_pred, all_pred)
 			np.save(out_true, all_true)
 
-			# Archive all fold files into a tar.gz in the output folder
+			# Archive all fold files into a tar.gz in the output folder (pred/true only)
 			tar_path = f"/data/mustard/vmehta/{self.filepath}/snr_{int(self.snr) if self.snr is not None else ''}_folds.tar.gz"
 			with tarfile.open(tar_path, "w:gz") as tar:
 				for file_path in fold_file_paths:
@@ -158,7 +164,30 @@ class CannonTrainer:
 					tar.add(file_path, arcname=arcname)
 			print(f"All fold files archived to {tar_path}.")
 
-		print(f"K-fold cross-validation complete. All predictions and true labels saved.")
+			# Save a single combined model pickle containing all fold models and metadata
+			combined = {
+				"filepath": self.filepath,
+				"snr": self.snr,
+				"labels": self.labels,
+				"wavelengths": self.wavelengths,
+				"folds": [
+					{
+						"fold": fi["fold"],
+						"train_idx": fi["train_idx"],
+						"test_idx": fi["test_idx"],
+						"model": m,
+						"pred": p,
+						"true": t
+					}
+					for fi, m, p, t in zip(fold_indices, all_models, all_pred, all_true)
+				]
+			}
+			combined_model_path = f"/data/mustard/vmehta/{self.filepath}/snr_{int(self.snr) if self.snr is not None else ''}_combined_models.pkl"
+			with open(combined_model_path, "wb") as f:
+				pickle.dump(combined, f)
+			print(f"Combined model pickle saved to {combined_model_path}.")
+
+		print(f"K-fold cross-validation complete. All predictions and true labels saved. Trained Model saved.")
 		return
 
 if __name__ == "__main__":
