@@ -11,3 +11,5 @@ matplotlibrc.py
 *.tar.gz
 *.mplstyle
 *.out
+venv/
+*.pyc
