@@ -1,5 +1,0 @@
-# README
-
-This folder contains everything related to working towards delivering a program that can resolve the star formation history of a galaxy from its present-day spectrum (the first half of my entire Honours project). The initial objective is to separate the training and testing process, that is, being able to load up an already trained model to test a spectrum on, where the test spectrum may be completely unrelated to the training data. 
-
-The rationale behind working on this separately from the main project folder is being able to focus on the delivery of a usable program, now that the base code is already there. I will continue to work on the base code in the main branch to advance the model itself, but this folder exists for the purpose of learning how to construct a workflow, and so will focus on only the first half of the project as the product it delivers.
