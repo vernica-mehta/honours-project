@@ -73,8 +73,8 @@ class CannonTrainer:
 	def _train_and_test_split(self, train_idx, test_idx, prefix=None, save_model_file=True):
 		"""Helper to train and test model on given indices, save results."""
 		train_labels = self.labels_array_all[train_idx]
-		train_flux = self.flux_exact[train_idx]
-		train_ivar = self.ivar_exact[train_idx]
+		train_flux = self.flux_noisy[train_idx]
+		train_ivar = self.ivar_noisy[train_idx]
 		test_flux = self.flux_noisy[test_idx]
 		test_ivar = self.ivar_noisy[test_idx]
 
@@ -90,7 +90,7 @@ class CannonTrainer:
 			true_labels = self.labels_array_all[test_idx]
 
 		# Save predictions/true labels
-		prefix = prefix if prefix != None else f"/data/mustard/vmehta/{self.filepath}/snr{int(self.snr) if self.snr is not None else ''}"
+		prefix = prefix if prefix != None else f"/data/mustard/vmehta/{self.filepath}/train_with_noise/snr{int(self.snr) if self.snr is not None else ''}"
 		np.save(f"{prefix}_pred.npy", pred_labels)
 		np.save(f"{prefix}_true.npy", true_labels)
 		
@@ -151,13 +151,13 @@ class CannonTrainer:
 			all_true = np.vstack(all_true)
 
 			# Save all_pred and all_true directly to output folder
-			out_pred = f"/data/mustard/vmehta/{self.filepath}/snr_{int(self.snr) if self.snr is not None else ''}_all_pred.npy"
-			out_true = f"/data/mustard/vmehta/{self.filepath}/snr_{int(self.snr) if self.snr is not None else ''}_all_true.npy"
+			out_pred = f"/data/mustard/vmehta/{self.filepath}/train_with_noise/snr_{int(self.snr) if self.snr is not None else ''}_all_pred.npy"
+			out_true = f"/data/mustard/vmehta/{self.filepath}/train_with_noise/snr_{int(self.snr) if self.snr is not None else ''}_all_true.npy"
 			np.save(out_pred, all_pred)
 			np.save(out_true, all_true)
 
 			# Archive all fold files into a tar.gz in the output folder (pred/true only)
-			tar_path = f"/data/mustard/vmehta/{self.filepath}/snr_{int(self.snr) if self.snr is not None else ''}_folds.tar.gz"
+			tar_path = f"/data/mustard/vmehta/{self.filepath}/train_with_noise/snr_{int(self.snr) if self.snr is not None else ''}_folds.tar.gz"
 			with tarfile.open(tar_path, "w:gz") as tar:
 				for file_path in fold_file_paths:
 					arcname = os.path.basename(file_path)
@@ -182,7 +182,7 @@ class CannonTrainer:
 					for fi, m, p, t in zip(fold_indices, all_models, all_pred, all_true)
 				]
 			}
-			combined_model_path = f"/data/mustard/vmehta/{self.filepath}/snr_{int(self.snr) if self.snr is not None else ''}_combined_models.pkl"
+			combined_model_path = f"/data/mustard/vmehta/{self.filepath}/train_with_noise/snr_{int(self.snr) if self.snr is not None else ''}_combined_models.pkl"
 			with open(combined_model_path, "wb") as f:
 				pickle.dump(combined, f)
 			print(f"Combined model pickle saved to {combined_model_path}.")
