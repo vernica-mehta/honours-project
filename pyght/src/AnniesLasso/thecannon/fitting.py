@@ -351,7 +351,7 @@ def _remove_forbidden_op_kwds(op_method, op_kwds):
 
 
 def fit_pixel_fixed_scatter(flux, ivar, initial_thetas, design_matrix,
-    regularization, censoring_mask, **kwargs):
+    regularization, censoring_mask, nonoise_training, **kwargs):
     """
     Fit theta coefficients and noise residual for a single pixel, using
     an initially fixed scatter value.
@@ -518,14 +518,13 @@ def fit_pixel_fixed_scatter(flux, ivar, initial_thetas, design_matrix,
 
     if theta_0 is not None:
         theta[0] = theta_0
-
-    # Fit the scatter.
-    op_fmin_kwds = dict(disp=False, maxiter=np.inf, maxfun=np.inf)
-    op_fmin_kwds.update(
-        xtol=op_kwds.get("xtol", 1e-8), ftol=op_kwds.get("ftol", 1e-8))
-
-    residuals_squared = (flux - np.dot(theta, design_matrix.T))**2
-    scatter = op.fmin(_scatter_objective_function, 0.0,
-        args=(residuals_squared, ivar), disp=False)
+    
+    if nonoise_training:
+        scatter = 0.0
+    else:
+        # Fit the scatter.
+        residuals_squared = (flux - np.dot(theta, design_matrix.T))**2
+        scatter = op.fmin(_scatter_objective_function, 0.0,
+        args=(residuals_squared, ivar), disp=False, maxiter=np.inf, maxfun=np.inf, xtol=1e-8, ftol=1e-8)
 
     return (theta, scatter**2, metadata)

@@ -464,7 +464,7 @@ class CannonModel(object):
         return hull.find_simplex(labels) >= 0
 
 
-    def write(self, path, include_training_set_spectra=False, overwrite=False,
+    def write(self, path, include_training_set_spectra=False, overwrite=True,
         protocol=-1):
         """
         Serialise the trained model and save it to disk. This will save all
@@ -500,19 +500,12 @@ class CannonModel(object):
         # Store up all the trained attributes and a hash of the training set.
         state = {}
         for attribute in attributes:
-            print(f"Serializing attribute: {attribute}")
             # Prefer private variable if it exists, else property
             private_attr = f'_{attribute}'
-            print(f"  Checking for private attribute: {private_attr}")
-            print(f"  hasattr result: {hasattr(self, private_attr)}")
             if hasattr(self, private_attr):
-                print(f"  Using private attribute {private_attr}")
                 value = getattr(self, private_attr)
-                print(f"  Got value type: {type(value)}, is None: {value is None}")
             else:
-                print(f"  Using property {attribute}")
                 value = getattr(self, attribute)
-                print(f"  Got value type: {type(value)}, is None: {value is None}")
             # Only call __getstate__ if the object has it AND it's not a numpy array
             # (numpy arrays have __getstate__ but it returns None in Python 3.13+)
             if hasattr(value, "__getstate__") and not isinstance(value, np.ndarray):
@@ -520,11 +513,6 @@ class CannonModel(object):
                     value = value.__getstate__()
                 except Exception as e:
                     print(f"Exception serializing {attribute}: {e}")
-            # Print the value or its summary for debugging
-            if isinstance(value, np.ndarray):
-                print(f"  Value type: np.ndarray, shape: {value.shape}, dtype: {value.dtype}, first 3: {value.flat[:3] if value.size > 0 else value}")
-            else:
-                print(f"  Value: {repr(value)[:200]}")
             state[attribute] = value
 
         # Create a metadata dictionary.
@@ -550,6 +538,7 @@ class CannonModel(object):
 
         with open(path, "wb") as fp:
             pickle.dump(state, fp, protocol) 
+        print("Saved model to {}".format(path))
         return None
 
 
@@ -605,7 +594,7 @@ class CannonModel(object):
                 "contact Andy Casey <andrew.casey@monash.edu> if you need this")
 
 
-    def train(self, threads=None, op_method=None, op_strict=True, op_kwds=None,
+    def train(self, nonoise_training, threads=None, op_method=None, op_strict=True, op_kwds=None,
         **kwargs):
         """
         Train the model.
@@ -629,6 +618,7 @@ class CannonModel(object):
             the training of each pixel.
         """
 
+        self.nonoise_training = nonoise_training
         kwds = dict(op_method=op_method, op_strict=op_strict, op_kwds=op_kwds)
         kwds.update(kwargs)
 
@@ -664,7 +654,8 @@ class CannonModel(object):
                 self._initial_theta(pixel),
                 self._censored_design_matrix(pixel),
                 self._pixel_access(self.regularization, pixel, 0.0),
-                None
+                None,
+                self.nonoise_training
             )
             (pixel_theta, pixel_s2, pixel_meta), = mapper(func, [args])
 
