@@ -6,6 +6,8 @@
 import os
 if os.path.isdir('fsps'):
     os.environ['SPS_HOME'] = 'fsps'
+elif os.path.isdir('pyght'):
+    os.environ['SPS_HOME'] = 'pyght/src/fsps'
 else:
     raise FileNotFoundError("FSPS directory not found!")
 
@@ -68,18 +70,22 @@ class SFH():
             nebemlineinspec = False # turn off nebular emission in spectrum
         )
         self.wav, self.spec = sp.get_spectrum()
-        self.wav = self.wav[470:2692] # truncating dataset to 370-570 nm wavelength range
-        self.spec = self.spec[:,470:2692]
+        self.wav = self.wav[470:2137] # truncating dataset to 370-520 nm wavelength range
+        self.spec = self.spec[:,470:2137]
 
-        bin_arr = np.r_[np.array([0.1, 20, 50, 100, 200, 500])*1e6, np.logspace(9.5, 10.15, 4)]
+        # Define bin edges. We need (N_labels + 1) edges to produce N_labels bins.
+        # Original code produced 10 edges (6 + 4), yielding 9 bins. Increase to 11 edges (6 + 5)
+        # so that we have 10 bins matching a 10-label SFH.
+        bin_arr = np.r_[np.array([0.1, 20, 50, 100, 200, 500])*1e6, np.logspace(9.5, 10.15, 5)]
         self.bins = np.log10(bin_arr)
 
         ages = sp.ssp_ages
         self.all_spec = {}
 
         spec_ages = dict(zip(ages, self.spec))
+        # Assign spectra into (len(self.bins) - 1) intervals: (bins[t-1], bins[t]] for t = 1..len(bins)-1
         for key, value in spec_ages.items():
-            for t in range(len(self.bins)):
+            for t in range(1, len(self.bins)):
                 if key <= self.bins[t] and key > self.bins[t - 1]:
                     self.all_spec.setdefault(self.bins[t], []).append(value)
 
@@ -95,7 +101,9 @@ class SFH():
             Dictionary of average spectra for each time-evolution bin.
         """
 
-        avg_spec = dict(zip(self.bins[1:], np.zeros(len(self.bins))))
+        # Initialize dictionary with one entry per bin (upper-edge key), all zeros arrays will be set below.
+        # Use len(self.bins) - 1 zeros to match the number of bins.
+        avg_spec = dict(zip(self.bins[1:], np.zeros(len(self.bins) - 1)))
 
         for key, value in self.all_spec.items():
             avg_spec[key] = np.vstack(value).mean(axis=0)
@@ -128,6 +136,7 @@ class SFH():
 
         age = np.log10(age * 1e9) # converting age in Gyr to log year scale
 
+        idx = None
         for i in range(len(self.bins)):
             if age <= self.bins[i] and age > self.bins[i-1]:
                 idx = i - 1
@@ -203,7 +212,7 @@ def churn_galaxies(n, sfh_len, n_jobs=1):
     """Parallel function to churn galaxies using multiprocessing, saving all results in single files. Shows progress bar."""
     now = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     filename = f"sfh_{n}_{sfh_len}_{now}"
-    base = f"OUTPUTS/{filename}"
+    base = f"/data/mustard/vmehta/{filename}"
     os.makedirs(base, exist_ok=True)
 
     import sys

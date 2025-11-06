@@ -594,7 +594,7 @@ class CannonModel(object):
                 "contact Andy Casey <andrew.casey@monash.edu> if you need this")
 
 
-    def train(self, nonoise_training, threads=None, op_method=None, op_strict=True, op_kwds=None,
+    def train(self, threads=None, op_method=None, op_strict=True, op_kwds=None,
         **kwargs):
         """
         Train the model.
@@ -617,8 +617,6 @@ class CannonModel(object):
             the squared scatter term at each pixel `s2`, and metadata related to
             the training of each pixel.
         """
-
-        self.nonoise_training = nonoise_training
         kwds = dict(op_method=op_method, op_strict=op_strict, op_kwds=op_kwds)
         kwds.update(kwargs)
 
@@ -654,8 +652,7 @@ class CannonModel(object):
                 self._initial_theta(pixel),
                 self._censored_design_matrix(pixel),
                 self._pixel_access(self.regularization, pixel, 0.0),
-                None,
-                self.nonoise_training
+                None
             )
             (pixel_theta, pixel_s2, pixel_meta), = mapper(func, [args])
 
