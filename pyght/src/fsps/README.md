@@ -21,7 +21,7 @@ You should not need to update the git repository until an update is announced (w
 
 Documentation
 ------
-See the [Manual](doc/MANUAL.pdf)
+See the [Manual](https://github.com/cconroy20/fsps/blob/82a873508d500ca353bbb922459bf928498f7a72/doc/MANUAL.pdf)
 
 Contents
 ---------

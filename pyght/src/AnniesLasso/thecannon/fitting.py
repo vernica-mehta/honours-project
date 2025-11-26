@@ -20,7 +20,8 @@ logger = logging.getLogger(__name__)
 
 
 def fit_spectrum(flux, ivar, initial_labels, vectorizer, theta, s2, fiducials,
-    scales, dispersion=None, use_derivatives=True, op_kwds=None):
+    scales, dispersion=None, use_derivatives=True, op_kwds=None,
+    prior_sum_target=None, prior_sum_std=None):
     """
     Fit a single spectrum by least-squared fitting.
 
@@ -94,8 +95,24 @@ def fit_spectrum(flux, ivar, initial_labels, vectorizer, theta, s2, fiducials,
 
         else:
             # Use the label vector derivative.
-            Dfun = lambda parameters: weights * np.dot(use_theta,
-                vectorizer.get_label_vector_derivative(parameters)).T
+            def Dfun(parameters):
+                # main Jacobian: shape (n_params, n_pixels)
+                J_main = weights * np.dot(use_theta,
+                    vectorizer.get_label_vector_derivative(parameters)).T
+
+                # If a sum prior is present, append one column for its derivative
+                if prior_sum_std is not None:
+                    if prior_sum_std <= 0:
+                        raise ValueError("prior_sum_std must be positive")
+                    n_params = J_main.shape[0]
+                    # parameters are scaled params; convert to label units
+                    labels = parameters * np.asarray(scales) + np.asarray(fiducials)
+                    pow10 = 10.0 ** labels
+                    # derivative of sum(10**labels) wrt parameters is ln(10)*scales*10**labels
+                    extra = (np.log(10.0) * np.asarray(scales) * pow10 / float(prior_sum_std)).reshape(n_params, 1)
+                    return np.hstack([J_main, extra])
+
+                return J_main
 
     else:
         Dfun = None
@@ -104,7 +121,16 @@ def fit_spectrum(flux, ivar, initial_labels, vectorizer, theta, s2, fiducials,
         return np.dot(use_theta, vectorizer(parameters))[:, 0]
 
     def residuals(parameters):
-        return weights * (func(parameters) - flux)
+        main = weights * (func(parameters) - flux)
+        if prior_sum_std is not None:
+            if prior_sum_std <= 0:
+                raise ValueError("prior_sum_std must be positive")
+            targ = 0.0 if prior_sum_target is None else float(prior_sum_target)
+            # Convert optimizer parameters back to label units: label = param * scale + fiducial
+            labels = parameters * np.asarray(scales) + np.asarray(fiducials)
+            pres = (np.sum(10.0 ** labels) - targ) / float(prior_sum_std)
+            return np.hstack([main, pres])
+        return main
 
     kwds = {
         "func": residuals,
@@ -273,7 +299,7 @@ def L1Norm_variation(theta):
 
 
 def _pixel_objective_function_fixed_scatter(theta, design_matrix, flux, ivar,
-    regularization, gradient=True):
+    regularization, prior_sum_target=None, prior_sum_std=None, gradient=True):
     """
     The objective function for a single regularized pixel with fixed scatter.
 
@@ -298,6 +324,7 @@ def _pixel_objective_function_fixed_scatter(theta, design_matrix, flux, ivar,
         Also return the analytic derivative of the objective function.
     """
 
+    # Chi-squared and L1 parts
     if gradient:
         csq, d_csq = chi_sq(theta, design_matrix, flux, ivar, gradient=True)
         L1, d_L1 = L1Norm_variation(theta)
@@ -305,13 +332,34 @@ def _pixel_objective_function_fixed_scatter(theta, design_matrix, flux, ivar,
         f = csq + regularization * L1
         g = d_csq + regularization * d_L1
 
+        # Add a Gaussian prior on the sum of theta entries, if requested.
+        if prior_sum_std is not None:
+            target = 0.0 if prior_sum_target is None else float(prior_sum_target)
+            ds = float(np.sum(theta) - target)
+            var = float(prior_sum_std) ** 2
+            f_sum = 0.5 * (ds * ds) / var
+            g_sum = (ds / var) * np.ones_like(theta)
+
+            f = f + f_sum
+            g = g + g_sum
+
         return (f, g)
 
     else:
         csq = chi_sq(theta, design_matrix, flux, ivar, gradient=False)
         L1, d_L1 = L1Norm_variation(theta)
 
-        return csq + regularization * L1
+        f = csq + regularization * L1
+
+        # Add a Gaussian prior on the sum of theta entries, if requested.
+        if prior_sum_std is not None:
+            target = 0.0 if prior_sum_target is None else float(prior_sum_target)
+            ds = float(np.sum(theta) - target)
+            var = float(prior_sum_std) ** 2
+            f_sum = 0.5 * (ds * ds) / var
+            f = f + f_sum
+
+        return f
 
 
 def _scatter_objective_function(scatter, residuals_squared, ivar):
@@ -396,10 +444,13 @@ def fit_pixel_fixed_scatter(flux, ivar, initial_thetas, design_matrix,
     # Make the design matrix safe to use.
     design_matrix[:, censored_theta] = 0
 
+    # No priors enforced during training here (sum-prior is used only at test)
+
     feval = []
     for initial_theta, initial_theta_source in initial_thetas:
         feval.append(_pixel_objective_function_fixed_scatter(
-            initial_theta, design_matrix, flux, ivar, regularization, False))
+            initial_theta, design_matrix, flux, ivar, regularization,
+            gradient=False))
 
     initial_theta, initial_theta_source = initial_thetas[np.nanargmin(feval)]
 
@@ -418,13 +469,15 @@ def fit_pixel_fixed_scatter(flux, ivar, initial_thetas, design_matrix,
         new_design_matrix = np.copy(design_matrix)
         new_design_matrix[:, 0] = 0.0
 
-        base_op_kwds["args"] = (new_design_matrix, new_flux, ivar, regularization)
+        base_op_kwds["args"] = (new_design_matrix, new_flux, ivar,
+            regularization)
 
     if any(censored_theta):
         # If the initial_theta is the same size as the censored_mask, but different
         # to the design_matrix, then we need to censor the initial theta so that we
         # don't bother solving for those parameters.
         base_op_kwds["x0"] = np.array(base_op_kwds["x0"])[~censored_theta]
+
         base_op_kwds["args"] = (design_matrix[:, ~censored_theta], flux, ivar,
             regularization)
 

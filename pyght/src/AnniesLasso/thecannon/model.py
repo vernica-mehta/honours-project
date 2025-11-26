@@ -685,7 +685,7 @@ class CannonModel(object):
 
     @requires_training
     def test(self, flux, ivar, initial_labels=None, threads=None, 
-        use_derivatives=True, op_kwds=None):
+        use_derivatives=True, op_kwds=None, prior_sum_target=1, prior_sum_std=None):
         """
         Run the test step on spectra.
 
@@ -740,7 +740,8 @@ class CannonModel(object):
 
         args = (self.vectorizer, self.theta, self.s2, self._fiducials, 
             self._scales)
-        kwargs = dict(use_derivatives=use_derivatives, op_kwds=op_kwds)
+        kwargs = dict(use_derivatives=use_derivatives, op_kwds=op_kwds,
+                  prior_sum_target=prior_sum_target, prior_sum_std=prior_sum_std)
 
         func = utils.wrapper(fitting.fit_spectrum, args, kwargs, S,
             message="Running test step on {} spectra".format(S))
