@@ -1,12 +1,10 @@
 import os
 import numpy as np
 from astropy.io import fits
-from AnniesLasso.thecannon.vectorizer.polynomial import PolynomialVectorizer
-from AnniesLasso.thecannon.model import CannonModel
+from pyght.src.AnniesLasso.thecannon.vectorizer.polynomial import PolynomialVectorizer
+from pyght.src.AnniesLasso.thecannon.model import CannonModel
 import matplotlib.pyplot as plt
 import pandas as pd
-
-cwd = os.getcwd()
 
 class UniformCannonTrainer:
 
@@ -16,48 +14,60 @@ class UniformCannonTrainer:
         self.size = size
         self.num_train = 500 / self.size
 
-        data = fits.getdata(f"{cwd}/OUTPUTS/{self.filepath}/{self.filepath}_weights.fits")
-        self.all_weights = np.log10(data)
-        self.all_spectra = np.load(f"{cwd}/OUTPUTS/{self.filepath}/{self.filepath}_spectra.npy")
-        self.all_invvar = np.load(f"{cwd}/OUTPUTS/{self.filepath}/{self.filepath}_invvar.npy")
-        self.wavelengths = np.load(f"{cwd}/OUTPUTS/{self.filepath}/{self.filepath}_wavelength.npy")
+        data = fits.getdata(f"/data/mustard/vmehta/{self.filepath}/{self.filepath}_weights.fits")
+        if data.dtype.names is not None:
+            # Structured array: take log10 of each column
+            self.training_set = np.vstack([np.log10(data[ln]) for ln in self.labels]).T
+        else:
+            # Regular ndarray
+            self.training_set = np.log10(data)
+               
+        self.all_spectra = np.load(f"/data/mustard/vmehta/{self.filepath}/{self.filepath}_snr_spectra.npy")
+        self.all_invvar = np.load(f"/data/mustard/vmehta/{self.filepath}/{self.filepath}_snr_invvar.npy")
+        self.wavelengths = np.load(f"/data/mustard/vmehta/{self.filepath}/{self.filepath}_wavelength.npy")
         self.labels = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]
         self.vectorizer = PolynomialVectorizer(self.labels, 2)
+
+        if isinstance(self.training_set, np.ndarray) and self.training_set.dtype.names is not None:
+            self.labels_array_all = np.vstack([self.training_set[ln] for ln in self.labels]).T
+        else:
+            self.labels_array_all = np.asarray(self.training_set)
+            if self.labels_array_all.ndim == 1:
+                self.labels_array_all = self.labels_array_all.reshape(-1, len(self.labels))
 
         return None
     
     def get_test_set(self):
 
-        if not os.path.exists(f"{cwd}/OUTPUTS/{self.filepath}/train_test_set/"):
+        if not os.path.exists(f"/data/mustard/vmehta/{self.filepath}/train_test_set/"):
 
-            os.makedirs(f"{cwd}/OUTPUTS/{self.filepath}/train_test_set/")
+            os.makedirs(f"/data/mustard/vmehta/{self.filepath}/train_test_set/")
 
             np.random.seed(42)
-            test_idx = np.random.default_rng().choice(2500, size=500, replace=False)
+            test_idx = np.random.default_rng().choice(1000, size=500, replace=False)
             test_idx =np.sort(test_idx)
 
-            test_weights = self.all_weights[test_idx]
+            test_weights = self.labels_array_all[test_idx]
             test_spectra = self.all_spectra[test_idx]
             test_invvar = self.all_invvar[test_idx]
 
-            train_weights = np.delete(self.all_weights, test_idx, axis=0)
+            train_weights = np.delete(self.labels_array_all, test_idx, axis=0)
             train_spectra = np.delete(self.all_spectra, test_idx, axis=0)
             train_invvar = np.delete(self.all_invvar, test_idx, axis=0)
 
-            np.save(f"{cwd}/OUTPUTS/{self.filepath}/train_test_set/test_weights.npy", test_weights)
-            np.save(f"{cwd}/OUTPUTS/{self.filepath}/train_test_set/test_spectra.npy", test_spectra)
-            np.save(f"{cwd}/OUTPUTS/{self.filepath}/train_test_set/test_invvar.npy", test_invvar)
-            np.save(f"{cwd}/OUTPUTS/{self.filepath}/train_test_set/train_weights.npy", train_weights)
-            np.save(f"{cwd}/OUTPUTS/{self.filepath}/train_test_set/train_spectra.npy", train_spectra)
-            np.save(f"{cwd}/OUTPUTS/{self.filepath}/train_test_set/train_invvar.npy", train_invvar)
+            np.save(f"/data/mustard/vmehta/{self.filepath}/train_test_set/test_weights.npy", test_weights)
+            np.save(f"/data/mustard/vmehta/{self.filepath}/train_test_set/test_spectra.npy", test_spectra)
+            np.save(f"/data/mustard/vmehta/{self.filepath}/train_test_set/test_invvar.npy", test_invvar)
+            np.save(f"/data/mustard/vmehta/{self.filepath}/train_test_set/train_weights.npy", train_weights)
+            np.save(f"/data/mustard/vmehta/{self.filepath}/train_test_set/train_spectra.npy", train_spectra)
+            np.save(f"/data/mustard/vmehta/{self.filepath}/train_test_set/train_invvar.npy", train_invvar)
 
-        self.test_weights = np.load(f"{cwd}/OUTPUTS/{self.filepath}/train_test_set/test_weights.npy")
-        self.test_spectra = np.load(f"{cwd}/OUTPUTS/{self.filepath}/train_test_set/test_spectra.npy")
-        self.test_invvar = np.load(f"{cwd}/OUTPUTS/{self.filepath}/train_test_set/test_invvar.npy")
-        self.train_weights = np.load(f"{cwd}/OUTPUTS/{self.filepath}/train_test_set/train_weights.npy")
-        self.train_spectra = np.load(f"{cwd}/OUTPUTS/{self.filepath}/train_test_set/train_spectra.npy")
-        self.train_invvar = np.load(f"{cwd}/OUTPUTS/{self.filepath}/train_test_set/train_invvar.npy")
-
+        self.test_weights = np.load(f"/data/mustard/vmehta/{self.filepath}/train_test_set/test_weights.npy")
+        self.test_spectra = np.load(f"/data/mustard/vmehta/{self.filepath}/train_test_set/test_spectra.npy")
+        self.test_invvar = np.load(f"/data/mustard/vmehta/{self.filepath}/train_test_set/test_invvar.npy")
+        self.train_weights = np.load(f"/data/mustard/vmehta/{self.filepath}/train_test_set/train_weights.npy")
+        self.train_spectra = np.load(f"/data/mustard/vmehta/{self.filepath}/train_test_set/train_spectra.npy")
+        self.train_invvar = np.load(f"/data/mustard/vmehta/{self.filepath}/train_test_set/train_invvar.npy")
         return None
 
     def train_and_test(self):
@@ -67,7 +77,7 @@ class UniformCannonTrainer:
 
         for i in range(int(self.num_train)):
 
-            train_idx = np.random.default_rng().choice(2000, size=self.size, replace=False)
+            train_idx = np.random.default_rng().choice(500, size=self.size, replace=False)
             train_idx = np.sort(train_idx)
 
             train_labels = self.train_weights[train_idx]
@@ -78,22 +88,20 @@ class UniformCannonTrainer:
                                 vectorizer=self.vectorizer, dispersion=self.wavelengths)
             model.train()
 
-            pred, *_ = model.test(self.test_spectra, self.test_invvar)
+            pred, *_ = model.test(self.test_spectra, self.test_invvar, prior_sum_target=1, prior_sum_std=0.1)
             pred_labels_all.append(pred)
 
         pred_labels_all = np.array(pred_labels_all)
         pred_labels = np.mean(pred_labels_all, axis=0)
-        pred_labels = 10**(pred_labels)
-        pred_labels = [pred / pred.sum(np.newaxis) for pred in pred_labels]
-        true_labels = 10**(self.test_weights)
+        true_labels = self.test_weights
 
         return pred_labels, true_labels
     
     def save_results(self):
 
         pred_labels, true_labels = self.train_and_test()
-        np.save(f"{cwd}/OUTPUTS/{self.filepath}/{self.size}_pred_labels.npy", pred_labels)
-        np.save(f"{cwd}/OUTPUTS/{self.filepath}/true_labels.npy", true_labels) if not os.path.exists(f"{cwd}/OUTPUTS/{self.filepath}/true_labels.npy") else None
+        np.save(f"/data/mustard/vmehta/{self.filepath}/{self.size}_pred_labels.npy", pred_labels)
+        np.save(f"/data/mustard/vmehta/{self.filepath}/true_labels.npy", true_labels) if not os.path.exists(f"/data/mustard/vmehta/{self.filepath}/true_labels.npy") else None
         
         return None
 
@@ -115,10 +123,10 @@ class UniformCannonTester:
         self.filepath = filepath
         self.size = size
 
-        self.real_labels_all = np.load(f"{cwd}/OUTPUTS/{self.filepath}/true_labels.npy")
-        self.pred_labels_all = np.load(f"{cwd}/OUTPUTS/{self.filepath}/{self.size}_pred_labels.npy")
+        self.real_labels_all = np.load(f"/data/mustard/vmehta/{self.filepath}/true_labels.npy")
+        self.pred_labels_all = np.load(f"/data/mustard/vmehta/{self.filepath}/{self.size}_pred_labels.npy")
 
-        bin_arr = np.r_[np.array([0.001, 0.1, 20, 50, 100, 200, 500])*1e6, np.logspace(9.5, 10.15, 4)]
+        bin_arr = np.r_[np.array([0.1, 20, 50, 100, 200, 500])*1e6, np.logspace(9.5, 10.15, 5)]
         binning = np.log10(bin_arr)
         self.bin_widths = np.diff(binning)
         self.bin_centers = binning[:-1] + self.bin_widths/2
@@ -206,10 +214,10 @@ class spec_stats(UniformCannonTester):
 
         self.pred_labels = self.pred_labels_all[self.n]
         self.real_labels = self.real_labels_all[self.n]
-        self.real_spec = np.load(f"{cwd}/OUTPUTS/{self.filepath}/train_test_set/test_spectra.npy")[self.n]
+        self.real_spec = np.load(f"/data/mustard/vmehta/{self.filepath}/train_test_set/test_spectra.npy")[self.n]
         self.sfh_pred = SFH(self.pred_labels)
         w, self.pred_spec, *_ = self.sfh_pred.final_spectrum()
-        self.wavelengths = np.load(f"{cwd}/OUTPUTS/{self.filepath}/{self.filepath}_wavelength.npy")
+        self.wavelengths = np.load(f"/data/mustard/vmehta/{self.filepath}/{self.filepath}_wavelength.npy")
 
         return None
     

@@ -6,12 +6,8 @@
 import os
 import numpy as np
 from astropy.io import fits
-import pickle
 from pyght.src.AnniesLasso.thecannon.vectorizer.polynomial import PolynomialVectorizer
 from pyght.src.AnniesLasso.thecannon.model import CannonModel
-
-# define global variable for current directory
-cwd = os.getcwd()
 
 class CannonTrainer:
 
@@ -96,11 +92,8 @@ class CannonTrainer:
 		
 		# Optionally save the trained model (per-fold). Default is True for compatibility.
 		if save_model_file:
-			import pickle
 			model_path = f"{prefix}_model.pkl"
-			with open(model_path, 'wb') as f:
-				pickle.dump(model, f)
-			print(f"Trained model saved to: {model_path}")
+			model.write(model_path, overwrite=True)
 		
 		return (pred_labels, true_labels, model)
 
@@ -147,10 +140,6 @@ class CannonTrainer:
 			#all_pred = [10**pred for pred in all_pred]
 			#all_true = [10**true for true in all_true]
 
-			# all_pred = [pred / pred.sum(axis=1)[:, np.newaxis] for pred in all_pred]
-			# all_pred = np.vstack(all_pred)
-			# all_true = np.vstack(all_true)
-
 			# Save all_pred and all_true directly to output folder
 			out_pred = f"/data/mustard/vmehta/{self.filepath}/snr_{int(self.snr) if self.snr is not None else ''}_all_pred_sigma_0_0_0_1.npy"
 			out_true = f"/data/mustard/vmehta/{self.filepath}/snr_{int(self.snr) if self.snr is not None else ''}_all_true.npy"
@@ -165,30 +154,7 @@ class CannonTrainer:
 					tar.add(file_path, arcname=arcname)
 			print(f"All fold files archived to {tar_path}.")
 
-			# Save a single combined model pickle containing all fold models and metadata
-			combined = {
-				"filepath": self.filepath,
-				"snr": self.snr,
-				"labels": self.labels,
-				"wavelengths": self.wavelengths,
-				"folds": [
-					{
-						"fold": fi["fold"],
-						"train_idx": fi["train_idx"],
-						"test_idx": fi["test_idx"],
-						"model": m,
-						"pred": p,
-						"true": t
-					}
-					for fi, m, p, t in zip(fold_indices, all_models, all_pred, all_true)
-				]
-			}
-			combined_model_path = f"/data/mustard/vmehta/{self.filepath}/snr_{int(self.snr) if self.snr is not None else ''}_combined_models.pkl"
-			with open(combined_model_path, "wb") as f:
-				pickle.dump(combined, f)
-			print(f"Combined model pickle saved to {combined_model_path}.")
-
-		print(f"K-fold cross-validation complete. All predictions and true labels saved. Trained Model saved.")
+		print(f"K-fold cross-validation complete. All predictions and true labels saved.")
 		return
 
 if __name__ == "__main__":
