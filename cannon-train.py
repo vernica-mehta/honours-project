@@ -78,7 +78,7 @@ class CannonTrainer:
 					   vectorizer=self.vectorizer, dispersion=self.wavelengths)
 		
 		model.train()
-		pred_labels, *_ = model.test(test_flux, test_ivar, prior_sum_target=1, prior_sum_std=0.001)
+		pred_labels, *_ = model.test(test_flux, test_ivar, prior_sum_target=1, prior_sum_std=0.1)
 		# True labels for test set
 		if isinstance(self.training_set, np.ndarray) and self.training_set.dtype.names is not None:
 			true_labels = np.vstack([self.training_set[ln][test_idx] for ln in self.labels]).T
@@ -141,7 +141,7 @@ class CannonTrainer:
 			#all_true = [10**true for true in all_true]
 
 			# Save all_pred and all_true directly to output folder
-			out_pred = f"/data/mustard/vmehta/{self.filepath}/snr_{int(self.snr) if self.snr is not None else ''}_all_pred_sigma_0_0_0_1.npy"
+			out_pred = f"/data/mustard/vmehta/{self.filepath}/snr_{int(self.snr) if self.snr is not None else ''}_all_pred.npy"
 			out_true = f"/data/mustard/vmehta/{self.filepath}/snr_{int(self.snr) if self.snr is not None else ''}_all_true.npy"
 			np.save(out_pred, all_pred)
 			np.save(out_true, all_true)

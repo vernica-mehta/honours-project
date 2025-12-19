@@ -163,45 +163,6 @@ class UniformCannonTester:
         plt.title(f"SFH Difference Plot (Training Size = {self.size})")
         plt.show()
         return None
-    
-    def t_test(self):
-
-        from scipy.stats import ttest_rel
-
-        pvalues = []
-        for i in range(10):
-            pred = self.pred_labels_all[:,i]
-            real = self.real_labels_all[:,i]
-
-            t, p = ttest_rel(pred, real)
-            pvalues.append(p)
-
-        df = pd.DataFrame({
-            "Label": range(1,11),
-            "P-values": pvalues,
-        })
-
-        return df
-    
-    def bootstrap(self, metric=np.mean, nbr_runs=1000):
-
-        import bstrap
-
-        pvalues = []
-
-        for i in range(10):
-            real = pd.DataFrame(self.real_labels_all[:,i])
-            pred = pd.DataFrame(self.pred_labels_all[:,i])
-
-            m1, m2, p = bstrap.bootstrap(metric, real, pred, nbr_runs=nbr_runs)
-            pvalues.append(p)
-
-        df = pd.DataFrame({
-            'Label': range(1, 11),
-            'P-values': pvalues,
-        })
-
-        return df
 
 class spec_stats(UniformCannonTester):
 

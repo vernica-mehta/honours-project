@@ -27,3 +27,4 @@ colorteff.f90
 bytype.f90
 Makefile.prv
 *.pkl
+*.sh

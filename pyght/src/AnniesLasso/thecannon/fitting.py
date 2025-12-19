@@ -299,7 +299,7 @@ def L1Norm_variation(theta):
 
 
 def _pixel_objective_function_fixed_scatter(theta, design_matrix, flux, ivar,
-    regularization, prior_sum_target=None, prior_sum_std=None, gradient=True):
+    regularization, gradient=True):
     """
     The objective function for a single regularized pixel with fixed scatter.
 
@@ -332,17 +332,6 @@ def _pixel_objective_function_fixed_scatter(theta, design_matrix, flux, ivar,
         f = csq + regularization * L1
         g = d_csq + regularization * d_L1
 
-        # Add a Gaussian prior on the sum of theta entries, if requested.
-        if prior_sum_std is not None:
-            target = 0.0 if prior_sum_target is None else float(prior_sum_target)
-            ds = float(np.sum(theta) - target)
-            var = float(prior_sum_std) ** 2
-            f_sum = 0.5 * (ds * ds) / var
-            g_sum = (ds / var) * np.ones_like(theta)
-
-            f = f + f_sum
-            g = g + g_sum
-
         return (f, g)
 
     else:
@@ -350,14 +339,6 @@ def _pixel_objective_function_fixed_scatter(theta, design_matrix, flux, ivar,
         L1, d_L1 = L1Norm_variation(theta)
 
         f = csq + regularization * L1
-
-        # Add a Gaussian prior on the sum of theta entries, if requested.
-        if prior_sum_std is not None:
-            target = 0.0 if prior_sum_target is None else float(prior_sum_target)
-            ds = float(np.sum(theta) - target)
-            var = float(prior_sum_std) ** 2
-            f_sum = 0.5 * (ds * ds) / var
-            f = f + f_sum
 
         return f
 
