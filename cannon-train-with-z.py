@@ -28,12 +28,7 @@ class CannonTrainer:
 		self.snr = snr
 
 		data = fits.getdata(f"/data/mustard/vmehta/{self.filepath}/{self.filepath}_labels.fits")
-		if data.dtype.names is not None:
-			# Structured array: take log10 of each column
-			self.training_set = np.vstack([np.log10(data[ln]) for ln in self.labels]).T
-		else:
-			# Regular ndarray
-			self.training_set = np.log10(data)
+		self.training_set = np.hstack((np.log10(data[:,:10]), data[:,10:]))
 
 		self.flux_exact = np.load(f"/data/mustard/vmehta/{self.filepath}/{self.filepath}_snr_spectra.npy")
 		self.flux_noisy = np.load(f"/data/mustard/vmehta/{self.filepath}/{self.filepath}_snr{int(self.snr) if self.snr is not None else ''}_spectra.npy")
