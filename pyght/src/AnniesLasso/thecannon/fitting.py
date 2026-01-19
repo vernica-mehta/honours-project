@@ -109,7 +109,10 @@ def fit_spectrum(flux, ivar, initial_labels, vectorizer, theta, s2, fiducials,
                     labels = parameters * np.asarray(scales) + np.asarray(fiducials)
                     pow10 = 10.0 ** labels
                     # derivative of sum(10**labels) wrt parameters is ln(10)*scales*10**labels
-                    extra = (np.log(10.0) * np.asarray(scales) * pow10 / float(prior_sum_std)).reshape(n_params, 1)
+                    # Only apply to first 10 labels
+                    extra = np.zeros((n_params, 1))
+                    for i in range(min(10, n_params)):
+                        extra[i, 0] = np.log(10.0) * scales[i] * pow10[i] / float(prior_sum_std)
                     return np.hstack([J_main, extra])
 
                 return J_main
@@ -128,7 +131,8 @@ def fit_spectrum(flux, ivar, initial_labels, vectorizer, theta, s2, fiducials,
             targ = 0.0 if prior_sum_target is None else float(prior_sum_target)
             # Convert optimizer parameters back to label units: label = param * scale + fiducial
             labels = parameters * np.asarray(scales) + np.asarray(fiducials)
-            pres = (np.sum(10.0 ** labels) - targ) / float(prior_sum_std)
+            # Apply sum prior only to first 10 labels
+            pres = (np.sum(10.0 ** labels[:10]) - targ) / float(prior_sum_std)
             return np.hstack([main, pres])
         return main
 
