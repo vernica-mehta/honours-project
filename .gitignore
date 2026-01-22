@@ -28,3 +28,4 @@ bytype.f90
 Makefile.prv
 *.pkl
 *.sh
+*.code-workspace
