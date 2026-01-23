@@ -27,7 +27,7 @@ class CannonTrainer:
 		self.labels = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]
 		self.snr = snr
 
-		data = fits.getdata(f"/data/mustard/vmehta/{self.filepath}/{self.filepath}_weights.fits")
+		data = fits.getdata(f"/avatar/vmehta/{self.filepath}/{self.filepath}_labels.fits")
 		if data.dtype.names is not None:
 			# Structured array: take log10 of each column
 			self.training_set = np.vstack([np.log10(data[ln]) for ln in self.labels]).T
@@ -35,11 +35,11 @@ class CannonTrainer:
 			# Regular ndarray
 			self.training_set = np.log10(data)
 
-		self.flux_exact = np.load(f"/data/mustard/vmehta/{self.filepath}/{self.filepath}_snr_spectra.npy")
-		self.flux_noisy = np.load(f"/data/mustard/vmehta/{self.filepath}/{self.filepath}_snr{int(self.snr) if self.snr is not None else ''}_spectra.npy")
-		self.ivar_exact = np.load(f"/data/mustard/vmehta/{self.filepath}/{self.filepath}_snr_invvar.npy")
-		self.ivar_noisy = np.load(f"/data/mustard/vmehta/{self.filepath}/{self.filepath}_snr{int(self.snr) if self.snr is not None else ''}_invvar.npy")
-		self.wavelengths = np.load(f"/data/mustard/vmehta/{self.filepath}/{self.filepath}_wavelength.npy")
+		self.flux_exact = np.load(f"/avatar/vmehta/{self.filepath}/{self.filepath}_snr_spectra.npy")
+		self.flux_noisy = np.load(f"/avatar/vmehta/{self.filepath}/{self.filepath}_snr{int(self.snr) if self.snr is not None else ''}_spectra.npy")
+		self.ivar_exact = np.load(f"/avatar/vmehta/{self.filepath}/{self.filepath}_snr_invvar.npy")
+		self.ivar_noisy = np.load(f"/avatar/vmehta/{self.filepath}/{self.filepath}_snr{int(self.snr) if self.snr is not None else ''}_invvar.npy")
+		self.wavelengths = np.load(f"/avatar/vmehta/{self.filepath}/{self.filepath}_wavelength.npy")
 
 		self.vectorizer = PolynomialVectorizer(self.labels, 2)
 
@@ -78,7 +78,7 @@ class CannonTrainer:
 					   vectorizer=self.vectorizer, dispersion=self.wavelengths)
 		
 		model.train()
-		pred_labels, *_ = model.test(test_flux, test_ivar, prior_sum_target=1, prior_sum_std=0.1)
+		pred_labels, *_ = model.test(test_flux, test_ivar, prior_sum_target=1, prior_sum_std=0.001)
 		# True labels for test set
 		if isinstance(self.training_set, np.ndarray) and self.training_set.dtype.names is not None:
 			true_labels = np.vstack([self.training_set[ln][test_idx] for ln in self.labels]).T
@@ -86,7 +86,7 @@ class CannonTrainer:
 			true_labels = self.labels_array_all[test_idx]
 
 		# Save predictions/true labels
-		prefix = prefix if prefix != None else f"/data/mustard/vmehta/{self.filepath}/snr{int(self.snr) if self.snr is not None else ''}"
+		prefix = prefix if prefix != None else f"/avatar/vmehta/{self.filepath}/snr{int(self.snr) if self.snr is not None else ''}"
 		np.save(f"{prefix}_pred.npy", pred_labels)
 		np.save(f"{prefix}_true.npy", true_labels)
 		
@@ -141,13 +141,13 @@ class CannonTrainer:
 			#all_true = [10**true for true in all_true]
 
 			# Save all_pred and all_true directly to output folder
-			out_pred = f"/data/mustard/vmehta/{self.filepath}/snr_{int(self.snr) if self.snr is not None else ''}_all_pred.npy"
-			out_true = f"/data/mustard/vmehta/{self.filepath}/snr_{int(self.snr) if self.snr is not None else ''}_all_true.npy"
+			out_pred = f"/avatar/vmehta/{self.filepath}/snr_{int(self.snr) if self.snr is not None else ''}_all_pred_sigma_0_0_0_1.npy"
+			out_true = f"/avatar/vmehta/{self.filepath}/snr_{int(self.snr) if self.snr is not None else ''}_all_true.npy"
 			np.save(out_pred, all_pred)
 			np.save(out_true, all_true)
 
 			# Archive all fold files into a tar.gz in the output folder (pred/true only)
-			tar_path = f"/data/mustard/vmehta/{self.filepath}/snr_{int(self.snr) if self.snr is not None else ''}_folds.tar.gz"
+			tar_path = f"/avatar/vmehta/{self.filepath}/snr_{int(self.snr) if self.snr is not None else ''}_folds.tar.gz"
 			with tarfile.open(tar_path, "w:gz") as tar:
 				for file_path in fold_file_paths:
 					arcname = os.path.basename(file_path)

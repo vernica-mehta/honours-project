@@ -45,7 +45,7 @@ def snr_worker(filepath, snr=None):
 
     s_list = []
     inv_list = []
-    spectra_all = np.load(f"/data/mustard/vmehta/{filepath}/{filepath}_spectra.npy")
+    spectra_all = np.load(f"/avatar/vmehta/{filepath}/{filepath}_spectra.npy")
     
     for s in spectra_all:
         s_instance = SNR(s, snr)
@@ -70,6 +70,6 @@ if __name__ == "__main__":
     
     s_array, inv_array = snr_worker(args.filepath, args.snr)
     n = int(args.snr) if args.snr is not None else ''
-    np.save(f"/data/mustard/vmehta/{args.filepath}/{args.filepath}_snr{n}_spectra.npy", s_array)
-    np.save(f"/data/mustard/vmehta/{args.filepath}/{args.filepath}_snr{n}_invvar.npy", inv_array)
+    np.save(f"/avatar/vmehta/{args.filepath}/{args.filepath}_snr{n}_spectra.npy", s_array)
+    np.save(f"/avatar/vmehta/{args.filepath}/{args.filepath}_snr{n}_invvar.npy", inv_array)
     print(f"Saved flattened spectra and inverse variance arrays with SNR={n}.")
