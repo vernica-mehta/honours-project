@@ -11,7 +11,7 @@ from pyght.src.AnniesLasso.thecannon.model import CannonModel
 
 class CannonTrainer:
 
-	def __init__(self, filepath, snr=None):
+	def __init__(self, filepath, snr=None, train_noisy = False):
 
 		""" Initialise CannonTrainer class.
 		
@@ -26,6 +26,7 @@ class CannonTrainer:
 		self.filepath = filepath
 		self.labels = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]
 		self.snr = snr
+		self.train_noisy = train_noisy
 
 		data = fits.getdata(f"/avatar/vmehta/{self.filepath}/{self.filepath}_labels.fits")
 		if data.dtype.names is not None:
@@ -68,9 +69,14 @@ class CannonTrainer:
 
 	def _train_and_test_split(self, train_idx, test_idx, prefix=None, save_model_file=True):
 		"""Helper to train and test model on given indices, save results."""
+		if self.train_noisy:
+			train_flux = self.flux_noisy[train_idx]
+			train_ivar = self.ivar_noisy[train_idx]
+		else:
+			train_flux = self.flux_exact[train_idx]
+			train_ivar = self.ivar_exact[train_idx]
+		
 		train_labels = self.labels_array_all[train_idx]
-		train_flux = self.flux_noisy[train_idx]
-		train_ivar = self.ivar_noisy[train_idx]
 		test_flux = self.flux_noisy[test_idx]
 		test_ivar = self.ivar_noisy[test_idx]
 
@@ -86,7 +92,12 @@ class CannonTrainer:
 			true_labels = self.labels_array_all[test_idx]
 
 		# Save predictions/true labels
-		prefix = prefix if prefix != None else f"/avatar/vmehta/{self.filepath}/snr{int(self.snr) if self.snr is not None else ''}"
+		if prefix != None:
+			prefix = prefix
+		elif self.train_noisy:
+			prefix = f"/avatar/vmehta/{self.filepath}/noisy-training/snr{int(self.snr) if self.snr is not None else ''}"
+		else:
+			prefix = f"/avatar/vmehta/{self.filepath}/noiseless-training/snr{int(self.snr) if self.snr is not None else ''}"
 		np.save(f"{prefix}_pred.npy", pred_labels)
 		np.save(f"{prefix}_true.npy", true_labels)
 		
@@ -141,13 +152,25 @@ class CannonTrainer:
 			#all_true = [10**true for true in all_true]
 
 			# Save all_pred and all_true directly to output folder
-			out_pred = f"/avatar/vmehta/{self.filepath}/snr_{int(self.snr) if self.snr is not None else ''}_all_pred_sigma_0_0_0_1.npy"
-			out_true = f"/avatar/vmehta/{self.filepath}/snr_{int(self.snr) if self.snr is not None else ''}_all_true.npy"
+			if self.snr is None:
+				out_pred = f"/avatar/vmehta/{self.filepath}/snr_all_pred_0_0_0_1.npy"
+				out_true = f"/avatar/vmehta/{self.filepath}/snr_all_true.npy"
+			elif self.train_noisy:
+				out_pred = f"/avatar/vmehta/{self.filepath}/noisy-training/snr{int(self.snr)}_all_pred.npy"
+				out_true = f"/avatar/vmehta/{self.filepath}/noisy-training/snr{int(self.snr)}_all_true.npy"
+			else:
+				out_pred = f"/avatar/vmehta/{self.filepath}/noiseless-training/snr{int(self.snr)}_all_pred.npy"
+				out_true = f"/avatar/vmehta/{self.filepath}/noiseless-training/snr{int(self.snr)}_all_true.npy"
 			np.save(out_pred, all_pred)
-			np.save(out_true, all_true)
+			#np.save(out_true, all_true)
 
 			# Archive all fold files into a tar.gz in the output folder (pred/true only)
-			tar_path = f"/avatar/vmehta/{self.filepath}/snr_{int(self.snr) if self.snr is not None else ''}_folds.tar.gz"
+			if self.snr is None:
+				tar_path = f"/avatar/vmehta/{self.filepath}/snr_folds.tar.gz"
+			elif self.train_noisy:
+				tar_path = f"/avatar/vmehta/{self.filepath}/noisy-training/snr{int(self.snr)}_folds.tar.gz"
+			else:
+				tar_path = f"/avatar/vmehta/{self.filepath}/noiseless-training/snr{int(self.snr)}_folds.tar.gz"
 			with tarfile.open(tar_path, "w:gz") as tar:
 				for file_path in fold_file_paths:
 					arcname = os.path.basename(file_path)
@@ -160,11 +183,12 @@ class CannonTrainer:
 if __name__ == "__main__":
 	import argparse
 	parser = argparse.ArgumentParser(description="Train The Cannon on galaxy spectra.")
-	parser.add_argument("filepath", type=str, help="Base filename for input/output (without OUTPUTS/ prefix and extension)")
+	parser.add_argument("filepath", type=str, help="Base filename for input/output")
 	parser.add_argument("--kfold", type=int, default=0, help="Number of folds for k-fold cross-validation (0 to disable)")
 	parser.add_argument("--snr", type=float, default=None, help="Signal-to-noise ratio used for noisy spectra (None for exact spectra)")
+	parser.add_argument("--train_noisy", action='store_true', help="Whether to train on noisy spectra (default is to train on exact spectra)")
 	args = parser.parse_args()
-	trainer = CannonTrainer(args.filepath, snr=args.snr)
+	trainer = CannonTrainer(args.filepath, snr=args.snr, train_noisy=args.train_noisy)
 	if args.kfold and args.kfold > 1:
 		trainer.cross_validate(k=args.kfold)
 	else:

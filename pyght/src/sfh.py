@@ -53,6 +53,8 @@ from tqdm import tqdm
 
 def _generate_galaxy():
     """Helper function to generate a single galaxy's data and return it."""
+    # Reseed RNG to ensure unique random state in each process/call
+    np.random.seed()
     labels = _gen_rand_sfh(10)
     galaxy = SFH(labels)
     w, s = galaxy.final_spectrum()

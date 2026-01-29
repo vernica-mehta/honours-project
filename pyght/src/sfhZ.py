@@ -47,6 +47,7 @@ class SFHZ():
 
 def _generate_galaxy():
     """Helper function to generate a single galaxy's data and return it."""
+    np.random.seed()
     weights = _gen_rand_sfh(10)
     galaxy = SFHZ(weights)
     w, s, z = galaxy.final_spectrum()

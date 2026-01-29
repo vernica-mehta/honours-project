@@ -17,8 +17,9 @@ class SNR:
             return self.spectrum, np.full_like(self.spectrum, 1e-15)
         
         noise = np.mean(self.spectrum) / self.snr
-        spec_noise = np.random.normal(self.spectrum, noise)
-        noise_array = np.full_like(self.spectrum, noise)
+        noise_array = np.random.normal(0, noise, size=self.spectrum.shape)
+        spec_noise = self.spectrum + noise_array
+        print(spec_noise)
 
         return spec_noise, noise_array
 
