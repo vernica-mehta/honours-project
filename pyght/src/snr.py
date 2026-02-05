@@ -19,9 +19,8 @@ class SNR:
         noise = np.mean(self.spectrum) / self.snr
         noise_array = np.random.normal(0, noise, size=self.spectrum.shape)
         spec_noise = self.spectrum + noise_array
-        print(spec_noise)
 
-        return spec_noise, noise_array
+        return spec_noise, noise
 
     def flatten_spectrum(self):
 
@@ -32,14 +31,17 @@ class SNR:
             return np.convolve(x, np.ones(w), 'same') / w
 
         window = 100
-        s_flat = s / moving_average(s, window)
+        # Use the original spectrum to estimate continuum (before noise was added)
+        continuum = moving_average(self.spectrum, window)
+        
+        s_flat = s / continuum
         final_s = s_flat * moving_average(np.ones_like(s), window) # dealing with edges
 
-        # get inverse variance array from flattened spectrum
-        n_flat = n / moving_average(s, window)
-        final_n = n_flat * moving_average(np.ones_like(s), window) # dealing with edges
-        inv_var = 1.0 / (final_n**2)
-
+        # Propagate noise: divide noise by the same continuum
+        noise_flat = n / continuum
+        final_noise = noise_flat * moving_average(np.ones_like(s), window) # dealing with edges
+        inv_var = 1.0 / (final_noise**2)
+        
         return final_s, inv_var
     
 def snr_worker(filepath, snr=None):

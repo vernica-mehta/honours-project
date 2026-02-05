@@ -84,7 +84,7 @@ class CannonTrainer:
 					   vectorizer=self.vectorizer, dispersion=self.wavelengths)
 		
 		model.train()
-		pred_labels, *_ = model.test(test_flux, test_ivar, prior_sum_target=1, prior_sum_std=0.001)
+		pred_labels, *_ = model.test(test_flux, test_ivar, prior_sum_target=1, prior_sum_std=0.1)
 		# True labels for test set
 		if isinstance(self.training_set, np.ndarray) and self.training_set.dtype.names is not None:
 			true_labels = np.vstack([self.training_set[ln][test_idx] for ln in self.labels]).T
@@ -153,7 +153,7 @@ class CannonTrainer:
 
 			# Save all_pred and all_true directly to output folder
 			if self.snr is None:
-				out_pred = f"/avatar/vmehta/{self.filepath}/snr_all_pred_0_0_0_1.npy"
+				out_pred = f"/avatar/vmehta/{self.filepath}/snr_all_pred.npy"
 				out_true = f"/avatar/vmehta/{self.filepath}/snr_all_true.npy"
 			elif self.train_noisy:
 				out_pred = f"/avatar/vmehta/{self.filepath}/noisy-training/snr{int(self.snr)}_all_pred.npy"
@@ -162,7 +162,7 @@ class CannonTrainer:
 				out_pred = f"/avatar/vmehta/{self.filepath}/noiseless-training/snr{int(self.snr)}_all_pred.npy"
 				out_true = f"/avatar/vmehta/{self.filepath}/noiseless-training/snr{int(self.snr)}_all_true.npy"
 			np.save(out_pred, all_pred)
-			#np.save(out_true, all_true)
+			np.save(out_true, all_true)
 
 			# Archive all fold files into a tar.gz in the output folder (pred/true only)
 			if self.snr is None:

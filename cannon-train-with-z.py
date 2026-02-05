@@ -27,14 +27,14 @@ class CannonTrainer:
 		self.labels = ["SFH1", "SFH2", "SFH3", "SFH4", "SFH5", "SFH6", "SFH7", "SFH8", "SFH9", "SFH10", "Z1", "Z2", "Z3", "Z4", "Z5", "Z6", "Z7", "Z8", "Z9", "Z10"]
 		self.snr = snr
 
-		data = fits.getdata(f"/data/mustard/vmehta/{self.filepath}/{self.filepath}_labels.fits")
+		data = fits.getdata(f"/avatar/vmehta/{self.filepath}/{self.filepath}_labels.fits")
 		self.training_set = np.hstack((np.log10(data[:,:10]), data[:,10:]))
 
-		self.flux_exact = np.load(f"/data/mustard/vmehta/{self.filepath}/{self.filepath}_snr_spectra.npy")
-		self.flux_noisy = np.load(f"/data/mustard/vmehta/{self.filepath}/{self.filepath}_snr{int(self.snr) if self.snr is not None else ''}_spectra.npy")
-		self.ivar_exact = np.load(f"/data/mustard/vmehta/{self.filepath}/{self.filepath}_snr_invvar.npy")
-		self.ivar_noisy = np.load(f"/data/mustard/vmehta/{self.filepath}/{self.filepath}_snr{int(self.snr) if self.snr is not None else ''}_invvar.npy")
-		self.wavelengths = np.load(f"/data/mustard/vmehta/{self.filepath}/{self.filepath}_wavelength.npy")
+		self.flux_exact = np.load(f"/avatar/vmehta/{self.filepath}/{self.filepath}_snr_spectra.npy")
+		self.flux_noisy = np.load(f"/avatar/vmehta/{self.filepath}/{self.filepath}_snr{int(self.snr) if self.snr is not None else ''}_spectra.npy")
+		self.ivar_exact = np.load(f"/avatar/vmehta/{self.filepath}/{self.filepath}_snr_invvar.npy")
+		self.ivar_noisy = np.load(f"/avatar/vmehta/{self.filepath}/{self.filepath}_snr{int(self.snr) if self.snr is not None else ''}_invvar.npy")
+		self.wavelengths = np.load(f"/avatar/vmehta/{self.filepath}/{self.filepath}_wavelength.npy")
 
 		self.vectorizer = PolynomialVectorizer(self.labels, 2)
 
@@ -81,7 +81,7 @@ class CannonTrainer:
 			true_labels = self.labels_array_all[test_idx]
 
 		# Save predictions/true labels
-		prefix = prefix if prefix != None else f"/data/mustard/vmehta/{self.filepath}/snr{int(self.snr) if self.snr is not None else ''}"
+		prefix = prefix if prefix != None else f"/avatar/vmehta/{self.filepath}/snr{int(self.snr) if self.snr is not None else ''}"
 		np.save(f"{prefix}_pred.npy", pred_labels)
 		np.save(f"{prefix}_true.npy", true_labels)
 		
@@ -136,13 +136,13 @@ class CannonTrainer:
 			#all_true = [10**true for true in all_true]
 
 			# Save all_pred and all_true directly to output folder
-			out_pred = f"/data/mustard/vmehta/{self.filepath}/snr_{int(self.snr) if self.snr is not None else ''}_all_pred.npy"
-			out_true = f"/data/mustard/vmehta/{self.filepath}/snr_{int(self.snr) if self.snr is not None else ''}_all_true.npy"
+			out_pred = f"/avatar/vmehta/{self.filepath}/snr_{int(self.snr) if self.snr is not None else ''}_all_pred.npy"
+			out_true = f"/avatar/vmehta/{self.filepath}/snr_{int(self.snr) if self.snr is not None else ''}_all_true.npy"
 			np.save(out_pred, all_pred)
 			np.save(out_true, all_true)
 
 			# Archive all fold files into a tar.gz in the output folder (pred/true only)
-			tar_path = f"/data/mustard/vmehta/{self.filepath}/snr_{int(self.snr) if self.snr is not None else ''}_folds.tar.gz"
+			tar_path = f"/avatar/vmehta/{self.filepath}/snr_{int(self.snr) if self.snr is not None else ''}_folds.tar.gz"
 			with tarfile.open(tar_path, "w:gz") as tar:
 				for file_path in fold_file_paths:
 					arcname = os.path.basename(file_path)

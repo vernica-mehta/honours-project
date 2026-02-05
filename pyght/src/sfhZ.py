@@ -58,7 +58,7 @@ def churn_galaxies(n, n_jobs=1):
     """Parallel function to churn galaxies using multiprocessing, saving all results in single files. Shows progress bar."""
     now = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     filename = f"sfhz_{n}_{now}"
-    base = f"/data/mustard/vmehta/{filename}"
+    base = f"/avatar/vmehta/{filename}"
     os.makedirs(base, exist_ok=True)
 
     import sys

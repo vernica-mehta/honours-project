@@ -14,12 +14,12 @@ class UniformCannonTrainer:
         self.size = size
         self.num_train = 500 / self.size
 
-        data = fits.getdata(f"/data/mustard/vmehta/{self.filepath}/{self.filepath}_labels.fits")
+        data = fits.getdata(f"/avatar/vmehta/{self.filepath}/{self.filepath}_labels.fits")
         self.training_set = np.hstack((np.log10(data[:,:10]), data[:,10:]))
                
-        self.all_spectra = np.load(f"/data/mustard/vmehta/{self.filepath}/{self.filepath}_snr_spectra.npy")
-        self.all_invvar = np.load(f"/data/mustard/vmehta/{self.filepath}/{self.filepath}_snr_invvar.npy")
-        self.wavelengths = np.load(f"/data/mustard/vmehta/{self.filepath}/{self.filepath}_wavelength.npy")
+        self.all_spectra = np.load(f"/avatar/vmehta/{self.filepath}/{self.filepath}_snr_spectra.npy")
+        self.all_invvar = np.load(f"/avatar/vmehta/{self.filepath}/{self.filepath}_snr_invvar.npy")
+        self.wavelengths = np.load(f"/avatar/vmehta/{self.filepath}/{self.filepath}_wavelength.npy")
         self.labels = ["SFH1", "SFH2", "SFH3", "SFH4", "SFH5", "SFH6", "SFH7", "SFH8", "SFH9", "SFH10", "Z1", "Z2", "Z3", "Z4", "Z5", "Z6", "Z7", "Z8", "Z9", "Z10"]
         self.vectorizer = PolynomialVectorizer(self.labels, 2)
 
@@ -34,9 +34,9 @@ class UniformCannonTrainer:
     
     def get_test_set(self):
 
-        if not os.path.exists(f"/data/mustard/vmehta/{self.filepath}/train_test_set/"):
+        if not os.path.exists(f"/avatar/vmehta/{self.filepath}/train_test_set/"):
 
-            os.makedirs(f"/data/mustard/vmehta/{self.filepath}/train_test_set/")
+            os.makedirs(f"/avatar/vmehta/{self.filepath}/train_test_set/")
 
             np.random.seed(42)
             test_idx = np.random.default_rng().choice(1000, size=500, replace=False)
@@ -50,19 +50,19 @@ class UniformCannonTrainer:
             train_spectra = np.delete(self.all_spectra, test_idx, axis=0)
             train_invvar = np.delete(self.all_invvar, test_idx, axis=0)
 
-            np.save(f"/data/mustard/vmehta/{self.filepath}/train_test_set/test_weights.npy", test_weights)
-            np.save(f"/data/mustard/vmehta/{self.filepath}/train_test_set/test_spectra.npy", test_spectra)
-            np.save(f"/data/mustard/vmehta/{self.filepath}/train_test_set/test_invvar.npy", test_invvar)
-            np.save(f"/data/mustard/vmehta/{self.filepath}/train_test_set/train_weights.npy", train_weights)
-            np.save(f"/data/mustard/vmehta/{self.filepath}/train_test_set/train_spectra.npy", train_spectra)
-            np.save(f"/data/mustard/vmehta/{self.filepath}/train_test_set/train_invvar.npy", train_invvar)
+            np.save(f"/avatar/vmehta/{self.filepath}/train_test_set/test_weights.npy", test_weights)
+            np.save(f"/avatar/vmehta/{self.filepath}/train_test_set/test_spectra.npy", test_spectra)
+            np.save(f"/avatar/vmehta/{self.filepath}/train_test_set/test_invvar.npy", test_invvar)
+            np.save(f"/avatar/vmehta/{self.filepath}/train_test_set/train_weights.npy", train_weights)
+            np.save(f"/avatar/vmehta/{self.filepath}/train_test_set/train_spectra.npy", train_spectra)
+            np.save(f"/avatar/vmehta/{self.filepath}/train_test_set/train_invvar.npy", train_invvar)
 
-        self.test_weights = np.load(f"/data/mustard/vmehta/{self.filepath}/train_test_set/test_weights.npy")
-        self.test_spectra = np.load(f"/data/mustard/vmehta/{self.filepath}/train_test_set/test_spectra.npy")
-        self.test_invvar = np.load(f"/data/mustard/vmehta/{self.filepath}/train_test_set/test_invvar.npy")
-        self.train_weights = np.load(f"/data/mustard/vmehta/{self.filepath}/train_test_set/train_weights.npy")
-        self.train_spectra = np.load(f"/data/mustard/vmehta/{self.filepath}/train_test_set/train_spectra.npy")
-        self.train_invvar = np.load(f"/data/mustard/vmehta/{self.filepath}/train_test_set/train_invvar.npy")
+        self.test_weights = np.load(f"/avatar/vmehta/{self.filepath}/train_test_set/test_weights.npy")
+        self.test_spectra = np.load(f"/avatar/vmehta/{self.filepath}/train_test_set/test_spectra.npy")
+        self.test_invvar = np.load(f"/avatar/vmehta/{self.filepath}/train_test_set/test_invvar.npy")
+        self.train_weights = np.load(f"/avatar/vmehta/{self.filepath}/train_test_set/train_weights.npy")
+        self.train_spectra = np.load(f"/avatar/vmehta/{self.filepath}/train_test_set/train_spectra.npy")
+        self.train_invvar = np.load(f"/avatar/vmehta/{self.filepath}/train_test_set/train_invvar.npy")
         return None
 
     def train_and_test(self):
@@ -95,8 +95,8 @@ class UniformCannonTrainer:
     def save_results(self):
 
         pred_labels, true_labels = self.train_and_test()
-        np.save(f"/data/mustard/vmehta/{self.filepath}/{self.size}_pred_labels.npy", pred_labels)
-        np.save(f"/data/mustard/vmehta/{self.filepath}/true_labels.npy", true_labels) if not os.path.exists(f"/data/mustard/vmehta/{self.filepath}/true_labels.npy") else None
+        np.save(f"/avatar/vmehta/{self.filepath}/{self.size}_pred_labels.npy", pred_labels)
+        np.save(f"/avatar/vmehta/{self.filepath}/true_labels.npy", true_labels) if not os.path.exists(f"/avatar/vmehta/{self.filepath}/true_labels.npy") else None
         
         return None
 
