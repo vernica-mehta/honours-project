@@ -1,8 +1,8 @@
 import os
 import numpy as np
 from astropy.io import fits
-from pyght.src.AnniesLasso.thecannon.vectorizer.polynomial import PolynomialVectorizer
-from pyght.src.AnniesLasso.thecannon.model import CannonModel
+from code.src.AnniesLasso.thecannon.vectorizer.polynomial import PolynomialVectorizer
+from code.src.AnniesLasso.thecannon.model import CannonModel
 
 class UniformCannonTrainer:
 
