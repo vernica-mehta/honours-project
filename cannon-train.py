@@ -115,8 +115,16 @@ class CannonTrainer:
 			print(f"Fold {i+1}: train [{start}:{end}), test {len(test_idx)}")
 			self._train_and_test_split(train_idx, test_idx)
 
-	def train_and_test(self):
-		self.kfold_train()
+	def train_and_test(self, random_seed=42):
+		"""Run a randomized 20/80 train/test split."""
+		n = len(self.labels_array_all)
+		split = n // 5
+		rng = np.random.default_rng(random_seed)
+		perm = rng.permutation(n)
+		train_idx = perm[:split]
+		test_idx = perm[split:]
+		print(f"Train/test split (seed={random_seed}): train {len(train_idx)}, test {len(test_idx)}")
+		self._train_and_test_split(train_idx, test_idx)
 		return
 
 	def cross_validate(self, k, random_seed=42):
@@ -184,12 +192,12 @@ if __name__ == "__main__":
 	import argparse
 	parser = argparse.ArgumentParser(description="Train The Cannon on galaxy spectra.")
 	parser.add_argument("filepath", type=str, help="Base filename for input/output")
-	parser.add_argument("--kfold", type=int, default=0, help="Number of folds for k-fold cross-validation (0 to disable)")
+	parser.add_argument("--kfold", type=int, default=None, help="Number of folds for k-fold cross-validation")
 	parser.add_argument("--snr", type=float, default=None, help="Signal-to-noise ratio used for noisy spectra (None for exact spectra)")
 	parser.add_argument("--train_noisy", action='store_true', help="Whether to train on noisy spectra (default is to train on exact spectra)")
 	args = parser.parse_args()
 	trainer = CannonTrainer(args.filepath, snr=args.snr, train_noisy=args.train_noisy)
-	if args.kfold and args.kfold > 1:
+	if args.kfold is not None and args.kfold > 1:
 		trainer.cross_validate(k=args.kfold)
 	else:
 		trainer.train_and_test()

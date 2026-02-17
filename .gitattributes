@@ -2,11 +2,10 @@
 # These patterns keep everything in-repo while storing the heavy content in LFS.
 
 # Core FSPS data directories
-pyght/src/fsps/SPECTRA/** filter=lfs diff=lfs merge=lfs -text
-pyght/src/fsps/ISOCHRONES/** filter=lfs diff=lfs merge=lfs -text
-pyght/src/fsps/nebular/** filter=lfs diff=lfs merge=lfs -text
-pyght/src/fsps/dust/**    filter=lfs diff=lfs merge=lfs -text
-# Optional: catch common large science file types anywhere (uncomment if desired)
+code/src/fsps/SPECTRA/** filter=lfs diff=lfs merge=lfs -text
+code/src/fsps/ISOCHRONES/** filter=lfs diff=lfs merge=lfs -text
+code/src/fsps/nebular/** filter=lfs diff=lfs merge=lfs -text
+code/src/fsps/dust/**    filter=lfs diff=lfs merge=lfs -text
 #*.fits filter=lfs diff=lfs merge=lfs -text
 #*.npy  filter=lfs diff=lfs merge=lfs -text
 #*.npz  filter=lfs diff=lfs merge=lfs -text
