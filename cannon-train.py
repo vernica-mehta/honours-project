@@ -36,9 +36,9 @@ class CannonTrainer:
 			# Regular ndarray
 			self.training_set = np.log10(data)
 
-		self.flux_exact = np.load(f"/avatar/vmehta/{self.filepath}/{self.filepath}_snr_spectra.npy")
+		#self.flux_exact = np.load(f"/avatar/vmehta/{self.filepath}/{self.filepath}_snr_spectra.npy")
 		self.flux_noisy = np.load(f"/avatar/vmehta/{self.filepath}/{self.filepath}_snr{int(self.snr) if self.snr is not None else ''}_spectra.npy")
-		self.ivar_exact = np.load(f"/avatar/vmehta/{self.filepath}/{self.filepath}_snr_invvar.npy")
+		#self.ivar_exact = np.load(f"/avatar/vmehta/{self.filepath}/{self.filepath}_snr_invvar.npy")
 		self.ivar_noisy = np.load(f"/avatar/vmehta/{self.filepath}/{self.filepath}_snr{int(self.snr) if self.snr is not None else ''}_invvar.npy")
 		self.wavelengths = np.load(f"/avatar/vmehta/{self.filepath}/{self.filepath}_wavelength.npy")
 
@@ -127,10 +127,9 @@ class CannonTrainer:
 		self._train_and_test_split(train_idx, test_idx)
 		return
 
-	def cross_validate(self, k, random_seed=42):
+	def cross_validate(self, k):
 		"""Run k-fold cross-validation using the same manual scheme as kfold_train."""
 		import tempfile
-		import shutil
 		import tarfile
 		all_pred = []
 		all_true = []
@@ -169,8 +168,8 @@ class CannonTrainer:
 			else:
 				out_pred = f"/avatar/vmehta/{self.filepath}/noiseless-training/snr{int(self.snr)}_all_pred.npy"
 				out_true = f"/avatar/vmehta/{self.filepath}/noiseless-training/snr{int(self.snr)}_all_true.npy"
-			np.save(out_pred, all_pred)
-			np.save(out_true, all_true)
+			np.save(out_pred, np.concatenate(all_pred, axis=0))
+			np.save(out_true, np.concatenate(all_true, axis=0))
 
 			# Archive all fold files into a tar.gz in the output folder (pred/true only)
 			if self.snr is None:

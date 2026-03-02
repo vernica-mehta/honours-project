@@ -14,7 +14,9 @@ class SNR:
     def add_noise(self):
 
         if self.snr == None:
-            return self.spectrum, np.full_like(self.spectrum, 1e-15)
+            # Treat noiseless as very high SNR so noise scales with spectrum
+            noise = self.spectrum / 2000
+            return self.spectrum, noise
         
         noise = self.spectrum / self.snr
         noise_array = np.random.normal(0, noise)

@@ -5,8 +5,8 @@
 import os
 if os.path.isdir('fsps'):
     os.environ['SPS_HOME'] = 'fsps'
-elif os.path.isdir('pyght'):
-    os.environ['SPS_HOME'] = 'pyght/src/fsps'
+elif os.path.isdir('code'):
+    os.environ['SPS_HOME'] = 'code/src/fsps'
 else:
     raise FileNotFoundError("FSPS directory not found!")
 
@@ -30,9 +30,9 @@ class SFH():
 
     def __init__(self, sfh_weights):
 
-        self.data = np.load('/home/vmehta/honours-project/pyght/data/sfh_binned_spectra.npy')
+        self.data = np.load('/home/vmehta/honours-project/code/data/sfh_binned_spectra.npy')
         self.sfh_weights = sfh_weights
-        self.wav = np.load('/home/vmehta/honours-project/pyght/data/wavelengths.npy')
+        self.wav = np.load('/home/vmehta/honours-project/code/data/wavelengths.npy')
 
         return
     
