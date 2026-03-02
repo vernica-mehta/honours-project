@@ -30,7 +30,8 @@ class SFH():
 
     def __init__(self, sfh_weights):
 
-        self.data = np.load('/home/vmehta/honours-project/code/data/sfh_binned_spectra.npy')
+        #self.data = np.load('/home/vmehta/honours-project/code/data/sfh_binned_spectra.npy')
+        self.data = np.load('/home/vmehta/honours-project/code/data/sfh_twobins_spectra.npy')
         self.sfh_weights = sfh_weights
         self.wav = np.load('/home/vmehta/honours-project/code/data/wavelengths.npy')
 
@@ -48,19 +49,18 @@ class SFH():
 
         return self.wav, s
 
-import multiprocessing
 from tqdm import tqdm
 
 def _generate_galaxy():
     """Helper function to generate a single galaxy's data and return it."""
     # Reseed RNG to ensure unique random state in each process/call
     np.random.seed()
-    labels = _gen_rand_sfh(10)
+    labels = _gen_rand_sfh(2)  # Using 2 bins for old and young SFH
     galaxy = SFH(labels)
     w, s = galaxy.final_spectrum()
     return (labels, s, w)
 
-def churn_galaxies(n, n_jobs=1):
+def churn_galaxies(n):
     """Parallel function to churn galaxies using multiprocessing, saving all results in single files. Shows progress bar."""
     now = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     filename = f"sfh_{n}_{now}"
@@ -75,24 +75,13 @@ def churn_galaxies(n, n_jobs=1):
         if not isatty and ((i+1) % max(1, n//10) == 0 or (i+1) == n):
             print(f"{i+1}/{n} galaxies generated", flush=True)
 
-    if n_jobs == 1:
-        if isatty:
-            for i in tqdm(range(n), desc="Galaxies", unit="galaxy"):
-                results.append(_generate_galaxy())
-        else:
-            for i in range(n):
-                results.append(_generate_galaxy())
-                minimal_progress(i)
+    if isatty:
+        for i in tqdm(range(n), desc="Galaxies", unit="galaxy"):
+            results.append(_generate_galaxy())
     else:
-        if isatty:
-            with multiprocessing.Pool(processes=n_jobs) as pool:
-                for result in tqdm(pool.starmap(_generate_galaxy, [() for _ in range(n)]), total=n, desc="Galaxies", unit="galaxy"):
-                    results.append(result)
-        else:
-            with multiprocessing.Pool(processes=n_jobs) as pool:
-                for i, result in enumerate(pool.starmap(_generate_galaxy, [() for _ in range(n)])):
-                    results.append(result)
-                    minimal_progress(i)
+        for i in range(n):
+            results.append(_generate_galaxy())
+            minimal_progress(i)
 
     # Unpack results
     labels_list, s_list, wav_list = zip(*results)
@@ -115,7 +104,6 @@ if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Churn given number of galaxies, using SFH of uniform given length.")
     parser.add_argument("n", type=int, help="Number of galaxies to generate.")
-    parser.add_argument("--n_jobs", type=int, default=1, help="Number of parallel processes to use (default: 1)")
     args = parser.parse_args()
 
-    churn_galaxies(args.n, n_jobs=args.n_jobs)
+    churn_galaxies(args.n)
