@@ -30,8 +30,8 @@ class SFH():
 
     def __init__(self, sfh_weights):
 
-        #self.data = np.load('/home/vmehta/honours-project/code/data/sfh_binned_spectra.npy')
-        self.data = np.load('/home/vmehta/honours-project/code/data/sfh_twobins_spectra.npy')
+        self.data = np.load('/home/vmehta/honours-project/code/data/sfh_binned_spectra.npy')
+        #self.data = np.load('/home/vmehta/honours-project/code/data/sfh_twobins_spectra.npy')
         self.sfh_weights = sfh_weights
         self.wav = np.load('/home/vmehta/honours-project/code/data/wavelengths.npy')
 
@@ -56,7 +56,7 @@ def _generate_galaxy(seed=None):
     # Reseed RNG to ensure unique random state in each process/call
     if seed is not None:
         np.random.seed(seed)
-    labels = _gen_rand_sfh(2)  # Using 2 bins for old and young SFH
+    labels = _gen_rand_sfh(10)
     galaxy = SFH(labels)
     w, s = galaxy.final_spectrum()
     return (labels, s, w)

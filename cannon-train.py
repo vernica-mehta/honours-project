@@ -24,8 +24,8 @@ class CannonTrainer:
 		"""
 
 		self.filepath = filepath
-		#self.labels = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]
-		self.labels = ['1', '2'] # Using 2 bins for old and young SFH
+		self.labels = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]
+		#self.labels = ['1', '2'] # Using 2 bins for old and young SFH
 		self.snr = snr
 		self.train_noisy = train_noisy
 
