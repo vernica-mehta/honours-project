@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 def fit_spectrum(flux, ivar, initial_labels, vectorizer, theta, s2, fiducials,
     scales, dispersion=None, use_derivatives=True, op_kwds=None,
-    prior_sum_target=None, prior_sum_std=None):
+    prior_sum_target=None, prior_sum_std=None, label_bounds=None):
     """
     Fit a single spectrum by least-squared fitting.
 
@@ -52,7 +52,11 @@ def fit_spectrum(flux, ivar, initial_labels, vectorizer, theta, s2, fiducials,
         function to calculate your own derivatives.
 
     :param op_kwds: [optional]
-        Optimization keywords that get passed to `scipy.optimize.leastsq`.
+        Optimization keywords that get passed to `scipy.optimize.least_squares`.
+
+    :param label_bounds: [optional]
+        A tuple of (lower_bounds, upper_bounds) for each label. If None, no bounds
+        are applied. For example: ([0, 0], [1, 1]) for 2 labels bounded between 0 and 1.
 
     :returns:
         A three-length tuple containing: the optimized labels, the covariance
@@ -96,24 +100,23 @@ def fit_spectrum(flux, ivar, initial_labels, vectorizer, theta, s2, fiducials,
         else:
             # Use the label vector derivative.
             def Dfun(parameters):
-                # main Jacobian: shape (n_params, n_pixels)
-                J_main = weights * np.dot(use_theta,
-                    vectorizer.get_label_vector_derivative(parameters)).T
+                # main Jacobian for least_squares: shape (n_residuals, n_params)
+                # vectorizer derivative gives (n_params, n_terms), use_theta is (n_pixels, n_terms)
+                J_main = weights[:, None] * np.dot(use_theta,
+                    vectorizer.get_label_vector_derivative(parameters))
+                # J_main shape: (n_pixels, n_params)
 
-                # If a sum prior is present, append one column for its derivative
+                # If a sum prior is present, append one row for its derivative
                 if prior_sum_std is not None:
                     if prior_sum_std <= 0:
                         raise ValueError("prior_sum_std must be positive")
-                    n_params = J_main.shape[0]
-                    # parameters are scaled params; convert to label units
-                    labels = parameters * np.asarray(scales) + np.asarray(fiducials)
-                    pow10 = 10.0 ** labels
-                    # derivative of sum(10**labels) wrt parameters is ln(10)*scales*10**labels
+                    n_params = J_main.shape[1]
+                    # derivative of sum(labels) wrt parameters is just scales
                     # Only apply to first 10 labels
-                    extra = np.zeros((n_params, 1))
+                    extra = np.zeros((1, n_params))
                     for i in range(min(10, n_params)):
-                        extra[i, 0] = np.log(10.0) * scales[i] * pow10[i] / float(prior_sum_std)
-                    return np.hstack([J_main, extra])
+                        extra[0, i] = scales[i] / float(prior_sum_std)
+                    return np.vstack([J_main, extra])
 
                 return J_main
 
@@ -132,25 +135,36 @@ def fit_spectrum(flux, ivar, initial_labels, vectorizer, theta, s2, fiducials,
             # Convert optimizer parameters back to label units: label = param * scale + fiducial
             labels = parameters * np.asarray(scales) + np.asarray(fiducials)
             # Apply sum prior only to first 10 labels
-            pres = (np.sum(10.0 ** labels[:10]) - targ) / float(prior_sum_std)
+            pres = (np.sum(labels[:10]) - targ) / float(prior_sum_std)
             return np.hstack([main, pres])
         return main
 
-    kwds = {
-        "func": residuals,
-        "Dfun": Dfun,
-        "col_deriv": True,
+    # Convert label bounds to parameter bounds (scaled space)
+    # label = parameter * scale + fiducial  =>  parameter = (label - fiducial) / scale
+    param_bounds = (-np.inf, np.inf)  # Default: no bounds
+    if label_bounds is not None:
+        lower_bounds, upper_bounds = label_bounds
+        lower_bounds = np.asarray(lower_bounds)
+        upper_bounds = np.asarray(upper_bounds)
+        
+        # Convert to parameter space
+        param_lower = (lower_bounds - np.asarray(fiducials)) / np.asarray(scales)
+        param_upper = (upper_bounds - np.asarray(fiducials)) / np.asarray(scales)
+        param_bounds = (param_lower, param_upper)
 
-        # These get passed through to leastsq:
-        "ftol": 7./3 - 4./3 - 1, # Machine precision.
-        "xtol": 7./3 - 4./3 - 1, # Machine precision.
-        "gtol": 0.0,
-        "maxfev": 100000, # MAGIC
-        "epsfcn": None,
-        "factor": 1.0,
+    kwds = {
+        "fun": residuals,
+        "jac": Dfun if Dfun is not None else '2-point',
+        "bounds": param_bounds,
+        "method": 'trf',  # Trust Region Reflective, good for bounds
+        "ftol": 7./3 - 4./3 - 1,  # Machine precision
+        "xtol": 7./3 - 4./3 - 1,  # Machine precision
+        "gtol": 7./3 - 4./3 - 1,  # Machine precision
+        "max_nfev": 100000,  # MAGIC
+        "verbose": 0,
     }
 
-    # Only update the keywords with things that op.curve_fit/op.leastsq expects.
+    # Only update the keywords with things that op.least_squares expects.
     if op_kwds is not None:
         for key in set(op_kwds).intersection(kwds):
             kwds[key] = op_kwds[key]
@@ -159,13 +173,38 @@ def fit_spectrum(flux, ivar, initial_labels, vectorizer, theta, s2, fiducials,
     for x0 in initial_labels:
 
         try:
-            op_labels, cov, meta, mesg, ier = op.leastsq(
-                x0=(x0 - fiducials)/scales, full_output=True, **kwds)
+            result = op.least_squares(
+                x0=(x0 - fiducials)/scales, **kwds)
+            
+            # Extract relevant info from result
+            op_labels = result.x
+            # Compute covariance from Jacobian (if available)
+            if result.jac is not None:
+                try:
+                    # For least_squares, covariance is approximated from the Jacobian
+                    # C = inv(J.T @ J) for linear least squares
+                    JTJ = result.jac.T @ result.jac
+                    cov = np.linalg.inv(JTJ)
+                except:
+                    cov = None
+            else:
+                cov = None
+                
+            meta = {
+                'x0': x0,
+                'chi_sq': np.sum(result.fun**2),
+                'success': result.success,
+                'message': result.message,
+                'nfev': result.nfev,
+                'njev': result.njev if hasattr(result, 'njev') else None,
+                'optimality': result.optimality,
+                'fvec': result.fun
+            }
+            
         except RuntimeError:
             logger.exception("Exception in fitting from {}".format(x0))
             continue
-        meta.update(
-            dict(x0=x0, chi_sq=np.sum(meta["fvec"]**2), ier=ier, mesg=mesg))
+            
         results.append((op_labels, cov, meta))
 
     if len(results) == 0:
@@ -196,15 +235,17 @@ def fit_spectrum(flux, ivar, initial_labels, vectorizer, theta, s2, fiducials,
 
     # Save additional information.
     meta.update({
-        "method": "leastsq",
+        "method": "least_squares",
         "label_names": vectorizer.label_names,
         "best_result_index": best_result_index,
         "derivatives_used": Dfun is not None,
         "snr": np.nanmedian(flux * weights),
         "r_chi_sq": meta["chi_sq"]/(use.sum() - L - 1),
+        "bounds_applied": label_bounds is not None,
     })
-    for key in ("ftol", "xtol", "gtol", "maxfev", "factor", "epsfcn"):
-        meta[key] = kwds[key]
+    for key in ("ftol", "xtol", "gtol", "max_nfev"):
+        if key in kwds:
+            meta[key] = kwds[key]
 
     return (op_labels, cov, meta)
 

@@ -685,7 +685,8 @@ class CannonModel(object):
 
     @requires_training
     def test(self, flux, ivar, initial_labels=None, threads=None, 
-        use_derivatives=True, op_kwds=None, prior_sum_target=1, prior_sum_std=None):
+        use_derivatives=True, op_kwds=None, prior_sum_target=1, prior_sum_std=None,
+        label_bounds=None):
         """
         Run the test step on spectra.
 
@@ -708,7 +709,11 @@ class CannonModel(object):
             function to calculate your own derivatives.
 
         :param op_kwds: [optional]
-            Optimization keywords that get passed to `scipy.optimize.leastsq`.
+            Optimization keywords that get passed to `scipy.optimize.least_squares`.
+
+        :param label_bounds: [optional]
+            A tuple of (lower_bounds, upper_bounds) for each label. If None, no bounds
+            are applied. For example: ([0, 0], [1, 1]) for 2 labels bounded between 0 and 1.
         """
 
         if flux is None or ivar is None:
@@ -741,7 +746,8 @@ class CannonModel(object):
         args = (self.vectorizer, self.theta, self.s2, self._fiducials, 
             self._scales)
         kwargs = dict(use_derivatives=use_derivatives, op_kwds=op_kwds,
-                  prior_sum_target=prior_sum_target, prior_sum_std=prior_sum_std)
+                  prior_sum_target=prior_sum_target, prior_sum_std=prior_sum_std,
+                  label_bounds=label_bounds)
 
         func = utils.wrapper(fitting.fit_spectrum, args, kwargs, S,
             message="Running test step on {} spectra".format(S))

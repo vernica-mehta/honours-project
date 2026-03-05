@@ -51,10 +51,11 @@ class SFH():
 
 from tqdm import tqdm
 
-def _generate_galaxy():
+def _generate_galaxy(seed=None):
     """Helper function to generate a single galaxy's data and return it."""
     # Reseed RNG to ensure unique random state in each process/call
-    np.random.seed()
+    if seed is not None:
+        np.random.seed(seed)
     labels = _gen_rand_sfh(2)  # Using 2 bins for old and young SFH
     galaxy = SFH(labels)
     w, s = galaxy.final_spectrum()
@@ -77,10 +78,10 @@ def churn_galaxies(n):
 
     if isatty:
         for i in tqdm(range(n), desc="Galaxies", unit="galaxy"):
-            results.append(_generate_galaxy())
+            results.append(_generate_galaxy(seed=i))
     else:
         for i in range(n):
-            results.append(_generate_galaxy())
+            results.append(_generate_galaxy(seed=i))
             minimal_progress(i)
 
     # Unpack results

@@ -32,10 +32,10 @@ class CannonTrainer:
 		data = fits.getdata(f"/avatar/vmehta/{self.filepath}/{self.filepath}_labels.fits")
 		if data.dtype.names is not None:
 			# Structured array: take log10 of each column
-			self.training_set = np.vstack([np.log10(data[ln]) for ln in self.labels]).T
+			self.training_set = np.vstack([data[ln] for ln in self.labels]).T
 		else:
 			# Regular ndarray
-			self.training_set = np.log10(data)
+			self.training_set = data
 
 		#self.flux_exact = np.load(f"/avatar/vmehta/{self.filepath}/{self.filepath}_snr_spectra.npy")
 		self.flux_noisy = np.load(f"/avatar/vmehta/{self.filepath}/{self.filepath}_snr{int(self.snr) if self.snr is not None else ''}_spectra.npy")
@@ -85,7 +85,14 @@ class CannonTrainer:
 					   vectorizer=self.vectorizer, dispersion=self.wavelengths)
 		
 		model.train()
-		pred_labels, *_ = model.test(test_flux, test_ivar, prior_sum_target=1, prior_sum_std=0.1)
+		
+		# Set bounds: each label must be between 0 and 1
+		n_labels = len(self.labels)
+		bounds = ([0] * n_labels, [1] * n_labels)
+		
+		pred_labels, *_ = model.test(test_flux, test_ivar, 
+									  prior_sum_target=1, prior_sum_std=0.1,
+									  label_bounds=bounds)
 		# True labels for test set
 		if isinstance(self.training_set, np.ndarray) and self.training_set.dtype.names is not None:
 			true_labels = np.vstack([self.training_set[ln][test_idx] for ln in self.labels]).T
@@ -154,10 +161,6 @@ class CannonTrainer:
 				fold_true_path = f"{fold_prefix}_true.npy"
 				fold_file_paths.extend([fold_pred_path, fold_true_path])
 				print(f"Fold {i+1}/{k}: saved predictions and true labels.")
-
-			# renormalise from log10 if needed
-			#all_pred = [10**pred for pred in all_pred]
-			#all_true = [10**true for true in all_true]
 
 			# Save all_pred and all_true directly to output folder
 			if self.snr is None:
