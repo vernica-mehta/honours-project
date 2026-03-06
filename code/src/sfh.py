@@ -30,8 +30,8 @@ class SFH():
 
     def __init__(self, sfh_weights):
 
-        self.data = np.load('/home/vmehta/honours-project/code/data/sfh_binned_spectra.npy')
-        #self.data = np.load('/home/vmehta/honours-project/code/data/sfh_twobins_spectra.npy')
+        #self.data = np.load('/home/vmehta/honours-project/code/data/sfh_binned_spectra.npy')
+        self.data = np.load('/home/vmehta/honours-project/code/data/sfh_twobins_spectra.npy')
         self.sfh_weights = sfh_weights
         self.wav = np.load('/home/vmehta/honours-project/code/data/wavelengths.npy')
 
@@ -56,7 +56,8 @@ def _generate_galaxy(seed=None):
     # Reseed RNG to ensure unique random state in each process/call
     if seed is not None:
         np.random.seed(seed)
-    labels = _gen_rand_sfh(10)
+    #labels = _gen_rand_sfh(10)
+    labels = np.array([np.linspace(0, 1, 1000), 1-np.linspace(0, 1, 1000)]).T # controlled uniform two-bin
     galaxy = SFH(labels)
     w, s = galaxy.final_spectrum()
     return (labels, s, w)
@@ -86,8 +87,9 @@ def churn_galaxies(n):
 
     # Unpack results
     labels_list, s_list, wav_list = zip(*results)
-    labels_arr = np.array(labels_list)
-    s_arr = np.array(s_list)
+    #labels_arr = np.array(labels_list)
+    labels_arr = np.array(labels_list[0])
+    s_arr = np.array(s_list[0])
     wav_out = np.array(wav_list[0])  # All wav should be identical
 
     labels_filename = os.path.join(base, f"{filename}_labels.fits")
