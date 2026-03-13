@@ -11,7 +11,7 @@ from code.src.AnniesLasso.thecannon.model import CannonModel
 
 class CannonTrainer:
 
-	def __init__(self, filepath, snr=None, train_noisy = False):
+	def __init__(self, filepath, snr=None, nlabels=None):
 
 		""" Initialise CannonTrainer class.
 		
@@ -24,34 +24,15 @@ class CannonTrainer:
 		"""
 
 		self.filepath = filepath
-		self.labels = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]
-		#self.labels = ['1', '2'] # Using 2 bins for old and young SFH
+		self.labels = list(map(str, range(1,nlabels+1)))
 		self.snr = snr
-		self.train_noisy = train_noisy
 
-		data = fits.getdata(f"/avatar/vmehta/{self.filepath}/{self.filepath}_labels.fits")
-		if data.dtype.names is not None:
-			# Structured array: take log10 of each column
-			self.training_set = np.vstack([data[ln] for ln in self.labels]).T
-		else:
-			# Regular ndarray
-			self.training_set = data
-
-		#self.flux_exact = np.load(f"/avatar/vmehta/{self.filepath}/{self.filepath}_snr_spectra.npy")
-		self.flux_noisy = np.load(f"/avatar/vmehta/{self.filepath}/{self.filepath}_snr{int(self.snr) if self.snr is not None else ''}_spectra.npy")
-		#self.ivar_exact = np.load(f"/avatar/vmehta/{self.filepath}/{self.filepath}_snr_invvar.npy")
-		self.ivar_noisy = np.load(f"/avatar/vmehta/{self.filepath}/{self.filepath}_snr{int(self.snr) if self.snr is not None else ''}_invvar.npy")
-		self.wavelengths = np.load(f"/avatar/vmehta/{self.filepath}/{self.filepath}_wavelength.npy")
-
+		self.training_set = fits.getdata(f"/avatar/vmehta/binning-tests/{self.filepath}/{self.filepath}_labels.fits")
+		self.flux = np.load(f"/avatar/vmehta/binning-tests/{self.filepath}/{self.filepath}_snr{int(self.snr)}_spectra.npy")
+		self.ivar = np.load(f"/avatar/vmehta/binning-tests/{self.filepath}/{self.filepath}_snr{int(self.snr)}_invvar.npy")
+		self.wavelengths = np.load(f"/avatar/vmehta/binning-tests/{self.filepath}/{self.filepath}_wavelength.npy")
 		self.vectorizer = PolynomialVectorizer(self.labels, 2)
-
-		# Prepare label array for all data
-		if isinstance(self.training_set, np.ndarray) and self.training_set.dtype.names is not None:
-			self.labels_array_all = np.vstack([self.training_set[ln] for ln in self.labels]).T
-		else:
-			self.labels_array_all = np.asarray(self.training_set)
-			if self.labels_array_all.ndim == 1:
-				self.labels_array_all = self.labels_array_all.reshape(-1, len(self.labels))
+		self.labels_array_all = np.asarray(self.training_set)
 
 		return None
 
@@ -70,16 +51,13 @@ class CannonTrainer:
 
 	def _train_and_test_split(self, train_idx, test_idx, prefix=None, save_model_file=True):
 		"""Helper to train and test model on given indices, save results."""
-		if self.train_noisy:
-			train_flux = self.flux_noisy[train_idx]
-			train_ivar = self.ivar_noisy[train_idx]
-		else:
-			train_flux = self.flux_exact[train_idx]
-			train_ivar = self.ivar_exact[train_idx]
+
+		train_flux = self.flux[train_idx]
+		train_ivar = self.ivar[train_idx]
 		
 		train_labels = self.labels_array_all[train_idx]
-		test_flux = self.flux_noisy[test_idx]
-		test_ivar = self.ivar_noisy[test_idx]
+		test_flux = self.flux[test_idx]
+		test_ivar = self.ivar[test_idx]
 
 		model = CannonModel(train_labels, train_flux, train_ivar, 
 					   vectorizer=self.vectorizer, dispersion=self.wavelengths)
@@ -93,19 +71,13 @@ class CannonTrainer:
 		pred_labels, *_ = model.test(test_flux, test_ivar, 
 									  prior_sum_target=1, prior_sum_std=0.1,
 									  label_bounds=bounds)
-		# True labels for test set
-		if isinstance(self.training_set, np.ndarray) and self.training_set.dtype.names is not None:
-			true_labels = np.vstack([self.training_set[ln][test_idx] for ln in self.labels]).T
-		else:
-			true_labels = self.labels_array_all[test_idx]
+		true_labels = self.labels_array_all[test_idx]
 
 		# Save predictions/true labels
 		if prefix != None:
 			prefix = prefix
-		elif self.train_noisy:
-			prefix = f"/avatar/vmehta/{self.filepath}/noisy-training/snr{int(self.snr) if self.snr is not None else ''}"
 		else:
-			prefix = f"/avatar/vmehta/{self.filepath}/noiseless-training/snr{int(self.snr) if self.snr is not None else ''}"
+			prefix = f"/avatar/vmehta/binning-tests/{self.filepath}/snr{int(self.snr)}"
 		np.save(f"{prefix}_pred.npy", pred_labels)
 		np.save(f"{prefix}_true.npy", true_labels)
 		
@@ -147,7 +119,7 @@ class CannonTrainer:
 		with tempfile.TemporaryDirectory() as tmpdir:
 			fold_file_paths = []
 			for i, (train_idx, test_idx) in ((i, (tr, te)) for i, tr, te in self._iter_manual_kfold(k)):
-				fold_prefix = os.path.join(tmpdir, f"{self.filepath}_snr{int(self.snr) if self.snr is not None else ''}_fold{i+1}")
+				fold_prefix = os.path.join(tmpdir, f"{self.filepath}_snr{int(self.snr)}_fold{i+1}")
 				pred_labels, true_labels, model = self._train_and_test_split(
 					train_idx, test_idx,
 					prefix=fold_prefix,
@@ -163,25 +135,13 @@ class CannonTrainer:
 				print(f"Fold {i+1}/{k}: saved predictions and true labels.")
 
 			# Save all_pred and all_true directly to output folder
-			if self.snr is None:
-				out_pred = f"/avatar/vmehta/{self.filepath}/snr_all_pred.npy"
-				out_true = f"/avatar/vmehta/{self.filepath}/snr_all_true.npy"
-			elif self.train_noisy:
-				out_pred = f"/avatar/vmehta/{self.filepath}/noisy-training/snr{int(self.snr)}_all_pred.npy"
-				out_true = f"/avatar/vmehta/{self.filepath}/noisy-training/snr{int(self.snr)}_all_true.npy"
-			else:
-				out_pred = f"/avatar/vmehta/{self.filepath}/noiseless-training/snr{int(self.snr)}_all_pred.npy"
-				out_true = f"/avatar/vmehta/{self.filepath}/noiseless-training/snr{int(self.snr)}_all_true.npy"
+			out_pred = f"/avatar/vmehta/binning-tests/{self.filepath}/snr{int(self.snr)}_all_pred.npy"
+			out_true = f"/avatar/vmehta/binning-tests/{self.filepath}/snr{int(self.snr)}_all_true.npy"
 			np.save(out_pred, np.concatenate(all_pred, axis=0))
 			np.save(out_true, np.concatenate(all_true, axis=0))
 
 			# Archive all fold files into a tar.gz in the output folder (pred/true only)
-			if self.snr is None:
-				tar_path = f"/avatar/vmehta/{self.filepath}/snr_folds.tar.gz"
-			elif self.train_noisy:
-				tar_path = f"/avatar/vmehta/{self.filepath}/noisy-training/snr{int(self.snr)}_folds.tar.gz"
-			else:
-				tar_path = f"/avatar/vmehta/{self.filepath}/noiseless-training/snr{int(self.snr)}_folds.tar.gz"
+			tar_path = f"/avatar/vmehta/binning-tests/{self.filepath}/snr{int(self.snr)}_folds.tar.gz"
 			with tarfile.open(tar_path, "w:gz") as tar:
 				for file_path in fold_file_paths:
 					arcname = os.path.basename(file_path)
@@ -196,10 +156,10 @@ if __name__ == "__main__":
 	parser = argparse.ArgumentParser(description="Train The Cannon on galaxy spectra.")
 	parser.add_argument("filepath", type=str, help="Base filename for input/output")
 	parser.add_argument("--kfold", type=int, default=None, help="Number of folds for k-fold cross-validation")
-	parser.add_argument("--snr", type=float, default=None, help="Signal-to-noise ratio used for noisy spectra (None for exact spectra)")
-	parser.add_argument("--train_noisy", action='store_true', help="Whether to train on noisy spectra (default is to train on exact spectra)")
+	parser.add_argument("--snr", type=float, default=None, help="Signal-to-noise ratio used for noisy spectra")
+	parser.add_argument("--nlabels", type=int, default=None, help="Number of labels (bins) used in the SFH")
 	args = parser.parse_args()
-	trainer = CannonTrainer(args.filepath, snr=args.snr, train_noisy=args.train_noisy)
+	trainer = CannonTrainer(args.filepath, snr=args.snr, nlabels=args.nlabels)
 	if args.kfold is not None and args.kfold > 1:
 		trainer.cross_validate(k=args.kfold)
 	else:
