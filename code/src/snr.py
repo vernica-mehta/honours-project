@@ -12,11 +12,6 @@ class SNR:
         return None
 
     def add_noise(self):
-
-        if self.snr == None:
-            # Treat noiseless as very high SNR so noise scales with spectrum
-            noise = self.spectrum / 2000
-            return self.spectrum, noise
         
         noise = self.spectrum / self.snr
         noise_array = np.random.normal(0, noise)
@@ -42,6 +37,7 @@ class SNR:
         # Propagate noise: divide noise by the same continuum
         noise_flat = n / continuum
         final_noise = noise_flat * moving_average(np.ones_like(s), window) # dealing with edges
+
         inv_var = 1.0 / (final_noise**2)
         
         return final_s, inv_var
@@ -50,7 +46,7 @@ def snr_worker(filepath, snr=None):
 
     s_list = []
     inv_list = []
-    spectra_all = np.load(f"/avatar/vmehta/binning-tests/{filepath}/{filepath}_spectra.npy")
+    spectra_all = np.load(f"/avatar/vmehta/{filepath}/{filepath}_spectra.npy")
     
     for s in spectra_all:
         s_instance = SNR(s, snr)
@@ -75,6 +71,6 @@ if __name__ == "__main__":
     
     s_array, inv_array = snr_worker(args.filepath, args.snr)
     n = int(args.snr) if args.snr is not None else ''
-    np.save(f"/avatar/vmehta/binning-tests/{args.filepath}/{args.filepath}_snr{n}_spectra.npy", s_array)
-    np.save(f"/avatar/vmehta/binning-tests/{args.filepath}/{args.filepath}_snr{n}_invvar.npy", inv_array)
+    np.save(f"/avatar/vmehta/{args.filepath}/{args.filepath}_snr{n}_spectra.npy", s_array)
+    np.save(f"/avatar/vmehta/{args.filepath}/{args.filepath}_snr{n}_invvar.npy", inv_array)
     print(f"Saved flattened spectra and inverse variance arrays with SNR={n}.")
