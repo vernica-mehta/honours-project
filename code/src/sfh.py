@@ -15,7 +15,7 @@ import numpy as np
 from astropy.io import fits
 import datetime
 
-def _gen_rand_sfh(iteration, nbins, rng, mix=(0.4, 0.4, 0.2),
+def _gen_rand_sfh(iteration, nbins, rng, mix=(0.4, 0.2, 0.4),
                   alpha=(1.0, 0.25), fixed_levels=None):
     """Generate SFH weights on the simplex with mixed coverage modes.
 
@@ -78,10 +78,12 @@ def _basis_spectra_path(nbins):
         f"{root}/sfh_binning/{nbins}_bins.npy",
         f"{root}/sfh_{nbins}bins_spectra.npy",
     ]
-    if nbins == 2:
-        candidates.append(f"{root}/sfh_twobins_spectra.npy")
     if nbins == 3:
-        candidates.append(f"{root}/sfh_threebins_spectra.npy")
+        candidates.insert(0, f"{root}/sfh_threebins_spectra.npy")
+    if nbins == 6:
+        candidates.insert(0, f"{root}/sfh_sixbins_spectra.npy")
+    if nbins == 10:
+        candidates.insert(0, f"{root}/sfh_tenbins_spectra.npy")
 
     for path in candidates:
         if os.path.exists(path):
@@ -196,7 +198,7 @@ if __name__ == "__main__":
         type=float,
         nargs=3,
         metavar=("UNIFORM", "EXTREME", "GRID"),
-        default=[0.4, 0.4, 0.2],
+        default=[1.0, 0.0, 0.0],
         help="Relative weights for sampling modes as three values, e.g. --mix 0.5 0.3 0.2",
     )
     parser.add_argument(

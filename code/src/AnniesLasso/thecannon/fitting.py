@@ -21,7 +21,8 @@ logger = logging.getLogger(__name__)
 
 def fit_spectrum(flux, ivar, initial_labels, vectorizer, theta, s2, fiducials,
     scales, dispersion=None, use_derivatives=True, op_kwds=None,
-    prior_sum_target=None, prior_sum_std=None, label_bounds=None):
+    prior_sum_target=None, prior_sum_std=None, label_bounds=None,
+    prior_sum_mode="linear"):
     """
     Fit a single spectrum by least-squared fitting.
 
@@ -58,12 +59,21 @@ def fit_spectrum(flux, ivar, initial_labels, vectorizer, theta, s2, fiducials,
         A tuple of (lower_bounds, upper_bounds) for each label. If None, no bounds
         are applied. For example: ([0, 0], [1, 1]) for 2 labels bounded between 0 and 1.
 
+    :param prior_sum_mode: [optional]
+        How to evaluate the sum-prior term. "linear" applies the prior to
+        the label values directly. "log" applies the prior to 10**(label),
+        useful when fitting in log10-label space.
+
     :returns:
         A three-length tuple containing: the optimized labels, the covariance
         matrix, and metadata associated with the optimization.
     """
 
     adjusted_ivar = ivar/(1. + ivar * s2)
+
+    prior_sum_mode = str(prior_sum_mode).lower()
+    if prior_sum_mode not in ("linear", "log"):
+        raise ValueError("prior_sum_mode must be either 'linear' or 'log'")
 
     # Exclude non-finite points (e.g., points with zero inverse variance
     # or non-finite flux values, but the latter shouldn't exist anyway).
@@ -111,11 +121,18 @@ def fit_spectrum(flux, ivar, initial_labels, vectorizer, theta, s2, fiducials,
                     if prior_sum_std <= 0:
                         raise ValueError("prior_sum_std must be positive")
                     n_params = J_main.shape[1]
-                    # derivative of sum(labels) wrt parameters is just scales
+                    # derivative of sum-prior wrt parameters depends on prior mode
                     # Only apply to first 10 labels
                     extra = np.zeros((1, n_params))
                     for i in range(min(10, n_params)):
-                        extra[0, i] = scales[i] / float(prior_sum_std)
+                        if prior_sum_mode == "linear":
+                            extra[0, i] = scales[i] / float(prior_sum_std)
+                        else:
+                            label_i = parameters[i] * scales[i] + fiducials[i]
+                            extra[0, i] = (
+                                np.log(10.0) * (10.0**label_i) * scales[i]
+                                / float(prior_sum_std)
+                            )
                     return np.vstack([J_main, extra])
 
                 return J_main
@@ -135,7 +152,11 @@ def fit_spectrum(flux, ivar, initial_labels, vectorizer, theta, s2, fiducials,
             # Convert optimizer parameters back to label units: label = param * scale + fiducial
             labels = parameters * np.asarray(scales) + np.asarray(fiducials)
             # Apply sum prior only to first 10 labels
-            pres = (np.sum(labels[:10]) - targ) / float(prior_sum_std)
+            if prior_sum_mode == "linear":
+                prior_sum_value = np.sum(labels[:10])
+            else:
+                prior_sum_value = np.sum(10.0**labels[:10])
+            pres = (prior_sum_value - targ) / float(prior_sum_std)
             return np.hstack([main, pres])
         return main
 
@@ -156,7 +177,7 @@ def fit_spectrum(flux, ivar, initial_labels, vectorizer, theta, s2, fiducials,
         "fun": residuals,
         "jac": Dfun if Dfun is not None else '2-point',
         "bounds": param_bounds,
-        "method": 'trf',  # Trust Region Reflective, good for bounds
+        "method": 'dogbox',  # Trust Region Reflective, good for bounds
         "ftol": 7./3 - 4./3 - 1,  # Machine precision
         "xtol": 7./3 - 4./3 - 1,  # Machine precision
         "gtol": 7./3 - 4./3 - 1,  # Machine precision
@@ -242,6 +263,7 @@ def fit_spectrum(flux, ivar, initial_labels, vectorizer, theta, s2, fiducials,
         "snr": np.nanmedian(flux * weights),
         "r_chi_sq": meta["chi_sq"]/(use.sum() - L - 1),
         "bounds_applied": label_bounds is not None,
+        "prior_sum_mode": prior_sum_mode,
     })
     for key in ("ftol", "xtol", "gtol", "max_nfev"):
         if key in kwds:
@@ -277,7 +299,7 @@ def fit_theta_by_linalg(flux, ivar, s2, design_matrix):
     CiA = design_matrix * np.tile(adjusted_ivar, (design_matrix.shape[1], 1)).T
     try:
         ATCiAinv = np.linalg.inv(np.dot(design_matrix.T, CiA))
-    except np.linalg.linalg.LinAlgError:
+    except np.linalg.LinAlgError:
         N = design_matrix.shape[1]
         return (np.hstack([1, np.zeros(N - 1)]), np.inf * np.eye(N))
 
@@ -509,7 +531,7 @@ def fit_pixel_fixed_scatter(flux, ivar, initial_thetas, design_matrix,
 
     # Allow either l_bfgs_b or powell
     t_init = time()
-    default_op_method = "l_bfgs_b"
+    default_op_method = "powell"
     op_method = kwargs.get("op_method", default_op_method) or default_op_method
     op_method = op_method.lower()
 

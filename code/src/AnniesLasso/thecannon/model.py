@@ -657,7 +657,8 @@ class CannonModel(object):
             (pixel_theta, pixel_s2, pixel_meta), = mapper(func, [args])
 
             meta.append(pixel_meta)
-            theta[pixel], s2[pixel] = (pixel_theta, pixel_s2)
+            theta[pixel] = np.asarray(pixel_theta).reshape(-1)
+            s2[pixel] = float(np.asarray(pixel_s2).reshape(-1)[0])
 
         self._theta, self._s2 = (theta, s2)
 
@@ -686,7 +687,7 @@ class CannonModel(object):
     @requires_training
     def test(self, flux, ivar, initial_labels=None, threads=None, 
         use_derivatives=True, op_kwds=None, prior_sum_target=1, prior_sum_std=None,
-        label_bounds=None):
+        label_bounds=None, prior_sum_mode="linear"):
         """
         Run the test step on spectra.
 
@@ -714,6 +715,9 @@ class CannonModel(object):
         :param label_bounds: [optional]
             A tuple of (lower_bounds, upper_bounds) for each label. If None, no bounds
             are applied. For example: ([0, 0], [1, 1]) for 2 labels bounded between 0 and 1.
+
+        :param prior_sum_mode: [optional]
+            How to evaluate the sum-prior term: "linear" or "log".
         """
 
         if flux is None or ivar is None:
@@ -747,7 +751,7 @@ class CannonModel(object):
             self._scales)
         kwargs = dict(use_derivatives=use_derivatives, op_kwds=op_kwds,
                   prior_sum_target=prior_sum_target, prior_sum_std=prior_sum_std,
-                  label_bounds=label_bounds)
+                  label_bounds=label_bounds, prior_sum_mode=prior_sum_mode)
 
         func = utils.wrapper(fitting.fit_spectrum, args, kwargs, S,
             message="Running test step on {} spectra".format(S))

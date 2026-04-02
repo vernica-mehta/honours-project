@@ -11,7 +11,7 @@ from code.src.AnniesLasso.thecannon.model import CannonModel
 
 class CannonTrainer:
 
-	def __init__(self, filepath, snr=None, nlabels=None, log_model=False):
+	def __init__(self, filepath, snr=None, nlabels=None, log_model=False, log_flux=False):
 
 		""" Initialise CannonTrainer class.
 		
@@ -21,15 +21,19 @@ class CannonTrainer:
 			Base filename for input/output
 		labels : list
 			List of label names for training
+		log_flux : bool
+			Whether to take the logarithm of the flux before training
 		"""
 
 		self.filepath = filepath
 		self.labels = list(map(str, range(1,nlabels+1)))
 		self.snr = snr
 		self.log_model = log_model
-		self.output_root = f"/avatar/vmehta/{self.filepath}"
-		self.output_subdir = "log-prior-model" if self.log_model else "linear-prior-model"
-		self.output_dir = os.path.join(self.output_root, self.output_subdir)
+		self.log_flux = log_flux
+		self.output_root = f"/avatar/vmehta/{self.filepath}/finalmodeltest"
+		#self.output_subdir = "log-model" if self.log_model else "linear-model"
+		self.output_subsubdir = "log-flux" if self.log_flux else "linear-flux"
+		self.output_dir = os.path.join(self.output_root, self.output_subsubdir)
 		os.makedirs(self.output_dir, exist_ok=True)
 
 		self.training_set = fits.getdata(f"/avatar/vmehta/{self.filepath}/{self.filepath}_labels.fits")
@@ -42,7 +46,7 @@ class CannonTrainer:
 		return None
 
 	def _iter_manual_kfold(self, k):
-		"""Yield (i, train_idx, test_idx) using the same manual scheme as kfold_train."""
+		"""Yield (i, train_idx, test_idx) with one contiguous test block per fold."""
 		n = len(self.labels_all)
 		block_size = max(1, n // k)
 		for i in range(k):
@@ -50,19 +54,39 @@ class CannonTrainer:
 			end = (i + 1) * block_size if i < (k - 1) else n
 			if start >= n:
 				break
-			train_idx = np.arange(start, min(end, n))
-			test_idx = np.concatenate([np.arange(0, start), np.arange(min(end, n), n)])
+			test_idx = np.arange(start, min(end, n))
+			train_idx = np.concatenate([np.arange(0, start), np.arange(min(end, n), n)])
 			yield i, train_idx, test_idx
+
+	def _transform_flux_space(self, flux, ivar):
+		"""Return flux/ivar in requested model space (linear or log10 flux)."""
+		if not self.log_flux:
+			return flux, ivar
+
+		# log10-space requires strictly positive flux; invalid pixels are masked.
+		eps = np.finfo(float).tiny
+		safe_flux = np.clip(flux, eps, None)
+		log_flux = np.log10(safe_flux)
+
+		ln10 = np.log(10.0)
+		ivar_log = ivar * (safe_flux * ln10) ** 2
+		invalid = (~np.isfinite(flux)) | (~np.isfinite(ivar)) | (flux <= 0.0) | (ivar <= 0.0)
+		ivar_log = np.where(invalid, 0.0, ivar_log)
+		log_flux = np.where(invalid, 0.0, log_flux)
+		return log_flux, ivar_log
 
 	def _train_and_test_split(self, train_idx, test_idx, prefix=None, save_model_file=True):
 		"""Helper to train and test model on given indices, save results."""
 
-		train_flux = self.flux[train_idx]
-		train_ivar = self.ivar[train_idx]
+		train_flux_linear = self.flux[train_idx]
+		train_ivar_linear = self.ivar[train_idx]
 		
 		train_labels_linear = self.labels_all[train_idx]
-		test_flux = self.flux[test_idx]
-		test_ivar = self.ivar[test_idx]
+		test_flux_linear = self.flux[test_idx]
+		test_ivar_linear = self.ivar[test_idx]
+
+		train_flux, train_ivar = self._transform_flux_space(train_flux_linear, train_ivar_linear)
+		test_flux, test_ivar = self._transform_flux_space(test_flux_linear, test_ivar_linear)
 
 		if self.log_model:
 			eps = np.finfo(float).tiny
@@ -79,16 +103,17 @@ class CannonTrainer:
 			pred_labels_log, *_ = model.test(
 				test_flux,
 				test_ivar,
-				prior_sum_target=1, prior_sum_std=0.1)
+				prior_sum_target=1, prior_sum_std=0.1,
+				prior_sum_mode="log")
 			pred_labels = np.power(10.0, pred_labels_log)
 		else:
-			# Optional bounds in linear space for non-log model only.
 			n_labels = len(self.labels)
 			bounds = ([0] * n_labels, [1] * n_labels)
 			pred_labels, *_ = model.test(
 				test_flux,
 				test_ivar,
 				prior_sum_target=1, prior_sum_std=0.1,
+				prior_sum_mode="linear",
 				label_bounds=bounds)
 		true_labels = self.labels_all[test_idx]
 
@@ -108,10 +133,10 @@ class CannonTrainer:
 		return (pred_labels, true_labels, model)
 
 	def kfold_train(self):
-		"""Manual k-fold using contiguous blocks for training and the rest for testing."""
+		"""Manual k-fold using contiguous blocks for testing and the rest for training."""
 		for i, train_idx, test_idx in self._iter_manual_kfold(10):
-			start, end = train_idx[0], train_idx[-1] + 1
-			print(f"Fold {i+1}: train [{start}:{end}), test {len(test_idx)}")
+			test_start, test_end = test_idx[0], test_idx[-1] + 1
+			print(f"Fold {i+1}: test [{test_start}:{test_end}), train {len(train_idx)}")
 			self._train_and_test_split(train_idx, test_idx)
 
 	def train_and_test(self, random_seed=42):
@@ -127,7 +152,7 @@ class CannonTrainer:
 		return
 
 	def cross_validate(self, k):
-		"""Run k-fold cross-validation using the same manual scheme as kfold_train."""
+		"""Run k-fold cross-validation with one contiguous test block per fold."""
 		import tempfile
 		import tarfile
 		all_pred = []
@@ -181,8 +206,14 @@ if __name__ == "__main__":
 	parser.add_argument("--snr", type=float, default=None, help="Signal-to-noise ratio used for noisy spectra")
 	parser.add_argument("--nlabels", type=int, default=None, help="Number of labels (bins) used in the SFH")
 	parser.add_argument("--log-model", action="store_true", help="Train/test in log10 label space but save linear labels")
+	parser.add_argument("--log-flux", action="store_true", help="Train/test in log10 flux space")
 	args = parser.parse_args()
-	trainer = CannonTrainer(args.filepath, snr=args.snr, nlabels=args.nlabels, log_model=args.log_model)
+	trainer = CannonTrainer(
+		args.filepath,
+		snr=args.snr,
+		nlabels=args.nlabels,
+		log_model=args.log_model,
+		log_flux=args.log_flux)
 	if args.kfold is not None and args.kfold > 1:
 		trainer.cross_validate(k=args.kfold)
 	else:
