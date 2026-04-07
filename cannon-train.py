@@ -30,10 +30,10 @@ class CannonTrainer:
 		self.snr = snr
 		self.log_model = log_model
 		self.log_flux = log_flux
-		self.output_root = f"/avatar/vmehta/{self.filepath}/finalmodeltest"
+		self.output_root = f"/avatar/vmehta/{self.filepath}/lognormalbins"
 		#self.output_subdir = "log-model" if self.log_model else "linear-model"
-		self.output_subsubdir = "log-flux" if self.log_flux else "linear-flux"
-		self.output_dir = os.path.join(self.output_root, self.output_subsubdir)
+		#self.output_subsubdir = "log-flux" if self.log_flux else "linear-flux"
+		self.output_dir = os.path.join(self.output_root)
 		os.makedirs(self.output_dir, exist_ok=True)
 
 		self.training_set = fits.getdata(f"/avatar/vmehta/{self.filepath}/{self.filepath}_labels.fits")
@@ -103,7 +103,7 @@ class CannonTrainer:
 			pred_labels_log, *_ = model.test(
 				test_flux,
 				test_ivar,
-				prior_sum_target=1, prior_sum_std=0.1,
+				prior_sum_target=1, prior_sum_std=0.001,
 				prior_sum_mode="log")
 			pred_labels = np.power(10.0, pred_labels_log)
 		else:
