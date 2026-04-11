@@ -83,7 +83,7 @@ class UniformCannonTrainer:
                                 vectorizer=self.vectorizer, dispersion=self.wavelengths)
             model.train()
 
-            pred, *_ = model.test(self.test_spectra, self.test_invvar, prior_sum_target=1, prior_sum_std=0.1)
+            pred, *_ = model.test(self.test_spectra, self.test_invvar)
             pred_labels_all.append(pred)
 
         pred_labels_all = np.array(pred_labels_all)

@@ -21,8 +21,7 @@ logger = logging.getLogger(__name__)
 
 def fit_spectrum(flux, ivar, initial_labels, vectorizer, theta, s2, fiducials,
     scales, dispersion=None, use_derivatives=True, op_kwds=None,
-    prior_sum_target=None, prior_sum_std=None, label_bounds=None,
-    prior_sum_mode="linear"):
+    label_bounds=None):
     """
     Fit a single spectrum by least-squared fitting.
 
@@ -59,21 +58,12 @@ def fit_spectrum(flux, ivar, initial_labels, vectorizer, theta, s2, fiducials,
         A tuple of (lower_bounds, upper_bounds) for each label. If None, no bounds
         are applied. For example: ([0, 0], [1, 1]) for 2 labels bounded between 0 and 1.
 
-    :param prior_sum_mode: [optional]
-        How to evaluate the sum-prior term. "linear" applies the prior to
-        the label values directly. "log" applies the prior to 10**(label),
-        useful when fitting in log10-label space.
-
     :returns:
         A three-length tuple containing: the optimized labels, the covariance
         matrix, and metadata associated with the optimization.
     """
 
     adjusted_ivar = ivar/(1. + ivar * s2)
-
-    prior_sum_mode = str(prior_sum_mode).lower()
-    if prior_sum_mode not in ("linear", "log"):
-        raise ValueError("prior_sum_mode must be either 'linear' or 'log'")
 
     # Exclude non-finite points (e.g., points with zero inverse variance
     # or non-finite flux values, but the latter shouldn't exist anyway).
@@ -92,10 +82,66 @@ def fit_spectrum(flux, ivar, initial_labels, vectorizer, theta, s2, fiducials,
 
     initial_labels = np.atleast_2d(initial_labels)
 
+    # Enforce simplex constraints on the first N labels via softmax logits.
+    # This guarantees positivity and an exact unit-sum during test-time fitting.
+    n_sum_labels = min(10, L)
+    use_softmax_sum = (n_sum_labels > 0)
+
+    fiducials = np.asarray(fiducials)
+    scales = np.asarray(scales)
+
+    def _softmax(z):
+        z = np.asarray(z)
+        z = z - np.max(z)
+        ez = np.exp(z)
+        return ez / np.sum(ez)
+
+    def _labels_and_scaled_from_parameters(parameters):
+        if not use_softmax_sum:
+            scaled_labels = np.asarray(parameters)
+            labels = scaled_labels * scales + fiducials
+            return (labels, scaled_labels)
+
+        parameters = np.asarray(parameters)
+        labels = np.zeros(L, dtype=float)
+
+        logits = parameters[:n_sum_labels]
+        labels[:n_sum_labels] = _softmax(logits)
+
+        if L > n_sum_labels:
+            tail_scaled = parameters[n_sum_labels:]
+            labels[n_sum_labels:] = tail_scaled * scales[n_sum_labels:] + fiducials[n_sum_labels:]
+
+        scaled_labels = (labels - fiducials) / scales
+        return (labels, scaled_labels)
+
+    def _initial_parameters_from_labels(label_values):
+        label_values = np.asarray(label_values)
+        if not use_softmax_sum:
+            return (label_values - fiducials) / scales
+
+        params = np.zeros(L, dtype=float)
+
+        head = np.asarray(label_values[:n_sum_labels], dtype=float)
+        head = np.clip(head, 1e-12, None)
+        head_sum = np.sum(head)
+        if not np.isfinite(head_sum) or head_sum <= 0:
+            head = np.ones(n_sum_labels, dtype=float) / float(n_sum_labels)
+        else:
+            head = head / head_sum
+        params[:n_sum_labels] = np.log(head)
+
+        if L > n_sum_labels:
+            params[n_sum_labels:] = (label_values[n_sum_labels:] - fiducials[n_sum_labels:]) / scales[n_sum_labels:]
+
+        return params
+
     # Check the vectorizer whether it has a derivative built in.
     if use_derivatives not in (None, False):
         try:
-            vectorizer.get_label_vector_derivative(initial_labels[0])
+            x0_parameters = _initial_parameters_from_labels(initial_labels[0])
+            _, x0_scaled_labels = _labels_and_scaled_from_parameters(x0_parameters)
+            vectorizer.get_label_vector_derivative(x0_scaled_labels)
 
         except NotImplementedError:
             Dfun = None
@@ -110,55 +156,40 @@ def fit_spectrum(flux, ivar, initial_labels, vectorizer, theta, s2, fiducials,
         else:
             # Use the label vector derivative.
             def Dfun(parameters):
-                # main Jacobian for least_squares: shape (n_residuals, n_params)
-                # vectorizer derivative gives (n_params, n_terms), use_theta is (n_pixels, n_terms)
-                J_main = weights[:, None] * np.dot(use_theta,
-                    vectorizer.get_label_vector_derivative(parameters))
-                # J_main shape: (n_pixels, n_params)
+                # Jacobian wrt scaled labels first.
+                _, scaled_labels = _labels_and_scaled_from_parameters(parameters)
+                dvec_dscaled = vectorizer.get_label_vector_derivative(scaled_labels)
+                J_scaled = weights[:, None] * np.dot(use_theta, dvec_dscaled)
 
-                # If a sum prior is present, append one row for its derivative
-                if prior_sum_std is not None:
-                    if prior_sum_std <= 0:
-                        raise ValueError("prior_sum_std must be positive")
-                    n_params = J_main.shape[1]
-                    # derivative of sum-prior wrt parameters depends on prior mode
-                    # Only apply to first 10 labels
-                    extra = np.zeros((1, n_params))
-                    for i in range(min(10, n_params)):
-                        if prior_sum_mode == "linear":
-                            extra[0, i] = scales[i] / float(prior_sum_std)
-                        else:
-                            label_i = parameters[i] * scales[i] + fiducials[i]
-                            extra[0, i] = (
-                                np.log(10.0) * (10.0**label_i) * scales[i]
-                                / float(prior_sum_std)
-                            )
-                    return np.vstack([J_main, extra])
+                # If simplex softmax is used, chain to optimizer parameters.
+                if use_softmax_sum:
+                    J_map = np.zeros((L, L), dtype=float)
 
-                return J_main
+                    # scaled_i = (label_i - fiducial_i)/scale_i, label = softmax(logits)
+                    w = _softmax(parameters[:n_sum_labels])
+                    for i in range(n_sum_labels):
+                        for j in range(n_sum_labels):
+                            dlabel_dlogit = w[i] * ((1.0 if i == j else 0.0) - w[j])
+                            J_map[i, j] = dlabel_dlogit / scales[i]
+
+                    # Tail labels are parameterized linearly in scaled space.
+                    for i in range(n_sum_labels, L):
+                        J_map[i, i] = 1.0
+
+                    return np.dot(J_scaled, J_map)
+
+                # No simplex transform: parameters are scaled labels directly.
+                return J_scaled
 
     else:
         Dfun = None
 
     def func(parameters):
-        return np.dot(use_theta, vectorizer(parameters))[:, 0]
+        _, scaled_labels = _labels_and_scaled_from_parameters(parameters)
+        return np.dot(use_theta, vectorizer(scaled_labels))[:, 0]
 
     def residuals(parameters):
-        main = weights * (func(parameters) - flux)
-        if prior_sum_std is not None:
-            if prior_sum_std <= 0:
-                raise ValueError("prior_sum_std must be positive")
-            targ = 0.0 if prior_sum_target is None else float(prior_sum_target)
-            # Convert optimizer parameters back to label units: label = param * scale + fiducial
-            labels = parameters * np.asarray(scales) + np.asarray(fiducials)
-            # Apply sum prior only to first 10 labels
-            if prior_sum_mode == "linear":
-                prior_sum_value = np.sum(labels[:10])
-            else:
-                prior_sum_value = np.sum(10.0**labels[:10])
-            pres = (prior_sum_value - targ) / float(prior_sum_std)
-            return np.hstack([main, pres])
-        return main
+        return weights * (func(parameters) - flux)
 
     # Convert label bounds to parameter bounds (scaled space)
     # label = parameter * scale + fiducial  =>  parameter = (label - fiducial) / scale
@@ -167,11 +198,22 @@ def fit_spectrum(flux, ivar, initial_labels, vectorizer, theta, s2, fiducials,
         lower_bounds, upper_bounds = label_bounds
         lower_bounds = np.asarray(lower_bounds)
         upper_bounds = np.asarray(upper_bounds)
-        
-        # Convert to parameter space
-        param_lower = (lower_bounds - np.asarray(fiducials)) / np.asarray(scales)
-        param_upper = (upper_bounds - np.asarray(fiducials)) / np.asarray(scales)
-        param_bounds = (param_lower, param_upper)
+
+        if use_softmax_sum:
+            param_lower = np.full(L, -np.inf)
+            param_upper = np.full(L, np.inf)
+            if L > n_sum_labels:
+                # Convert only the non-softmax labels to parameter bounds.
+                tail_lower = (lower_bounds[n_sum_labels:] - fiducials[n_sum_labels:]) / scales[n_sum_labels:]
+                tail_upper = (upper_bounds[n_sum_labels:] - fiducials[n_sum_labels:]) / scales[n_sum_labels:]
+                param_lower[n_sum_labels:] = tail_lower
+                param_upper[n_sum_labels:] = tail_upper
+            param_bounds = (param_lower, param_upper)
+        else:
+            # Convert to parameter space
+            param_lower = (lower_bounds - fiducials) / scales
+            param_upper = (upper_bounds - fiducials) / scales
+            param_bounds = (param_lower, param_upper)
 
     kwds = {
         "fun": residuals,
@@ -194,11 +236,12 @@ def fit_spectrum(flux, ivar, initial_labels, vectorizer, theta, s2, fiducials,
     for x0 in initial_labels:
 
         try:
+            x0_parameters = _initial_parameters_from_labels(x0)
             result = op.least_squares(
-                x0=(x0 - fiducials)/scales, **kwds)
+                x0=x0_parameters, **kwds)
             
             # Extract relevant info from result
-            op_labels = result.x
+            op_labels, _ = _labels_and_scaled_from_parameters(result.x)
             # Compute covariance from Jacobian (if available)
             if result.jac is not None:
                 try:
@@ -219,25 +262,25 @@ def fit_spectrum(flux, ivar, initial_labels, vectorizer, theta, s2, fiducials,
                 'nfev': result.nfev,
                 'njev': result.njev if hasattr(result, 'njev') else None,
                 'optimality': result.optimality,
-                'fvec': result.fun
+                'fvec': result.fun,
+                'sum_labels_first10': float(np.sum(op_labels[:10])) if len(op_labels) >= 1 else np.nan
             }
             
         except RuntimeError:
             logger.exception("Exception in fitting from {}".format(x0))
             continue
             
-        results.append((op_labels, cov, meta))
+        results.append((op_labels, result.x, cov, meta))
 
     if len(results) == 0:
         logger.warn("No results found!")
         return (np.nan * np.ones(L), None, dict(fail_message="No results found"))
 
-    best_result_index = np.nanargmin([m["chi_sq"] for (o, c, m) in results])
-    op_labels, cov, meta = results[best_result_index]
+    best_result_index = np.nanargmin([m["chi_sq"] for (o, p, c, m) in results])
+    op_labels, best_parameters, cov, meta = results[best_result_index]
 
-    # De-scale the optimized labels.
-    meta["model_flux"] = func(op_labels)
-    op_labels = op_labels * scales + fiducials
+    # Save model flux at the optimized parameters.
+    meta["model_flux"] = func(best_parameters)
 
     if np.allclose(op_labels, meta["x0"]):
         logger.warn(
@@ -263,7 +306,8 @@ def fit_spectrum(flux, ivar, initial_labels, vectorizer, theta, s2, fiducials,
         "snr": np.nanmedian(flux * weights),
         "r_chi_sq": meta["chi_sq"]/(use.sum() - L - 1),
         "bounds_applied": label_bounds is not None,
-        "prior_sum_mode": prior_sum_mode,
+        "softmax_sum_enforced": use_softmax_sum,
+        "softmax_sum_labels": n_sum_labels if use_softmax_sum else 0,
     })
     for key in ("ftol", "xtol", "gtol", "max_nfev"):
         if key in kwds:
