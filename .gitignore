@@ -29,3 +29,4 @@ Makefile.prv
 *.pkl
 *.sh
 *.code-workspace
+.vscode
