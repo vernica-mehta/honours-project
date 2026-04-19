@@ -83,7 +83,7 @@ def _basis_spectra_path(nbins):
     if nbins == 6:
         candidates.insert(0, f"{root}/sfh_sixbinsconf2_spectra.npy")
     if nbins == 10:
-        candidates.insert(0, f"{root}/sfh_tennormalbins_spectra.npy")
+        candidates.insert(0, f"{root}/sfh_binned_spectra.npy")
 
     for path in candidates:
         if os.path.exists(path):
