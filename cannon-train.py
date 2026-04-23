@@ -30,10 +30,10 @@ class CannonTrainer:
 		self.snr = snr
 		self.log_model = log_model
 		self.log_flux = log_flux
-		self.output_root = f"/avatar/vmehta/{self.filepath}/binconf2"
-		self.output_subdir = 'newpriorthing'
+		self.output_root = f"/avatar/vmehta/{self.filepath}/finalmodel"
+		#self.output_subdir = 'newpriorthing'
 		#self.output_subsubdir = "log-flux" if self.log_flux else "linear-flux"
-		self.output_dir = os.path.join(self.output_root, self.output_subdir) #, self.output_subsubdir)
+		self.output_dir = os.path.join(self.output_root) #, self.output_subdir) #, self.output_subsubdir)
 		os.makedirs(self.output_dir, exist_ok=True)
 
 		self.training_set = fits.getdata(f"/avatar/vmehta/{self.filepath}/{self.filepath}_labels.fits")

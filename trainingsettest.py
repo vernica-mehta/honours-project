@@ -10,28 +10,15 @@ class UniformCannonTrainer:
 
         self.filepath = filepath
         self.size = size
-        self.num_train = 500 / self.size
+        self.num_train = np.min([int(1000 / self.size), 10]) # maximum of 10 iterations to prevent excessive runtime
 
-        data = fits.getdata(f"/avatar/vmehta/{self.filepath}/{self.filepath}_labels.fits")
-        if data.dtype.names is not None:
-            # Structured array: take log10 of each column
-            self.training_set = np.vstack([np.log10(data[ln]) for ln in self.labels]).T
-        else:
-            # Regular ndarray
-            self.training_set = np.log10(data)
-               
-        self.all_spectra = np.load(f"/avatar/vmehta/{self.filepath}/{self.filepath}_snr_spectra.npy")
-        self.all_invvar = np.load(f"/avatar/vmehta/{self.filepath}/{self.filepath}_snr_invvar.npy")
+        self.training_set = fits.getdata(f"/avatar/vmehta/{self.filepath}/{self.filepath}_labels.fits")
+        self.all_spectra = np.load(f"/avatar/vmehta/{self.filepath}/{self.filepath}_snr100_spectra.npy")
+        self.all_invvar = np.load(f"/avatar/vmehta/{self.filepath}/{self.filepath}_snr100_invvar.npy")
         self.wavelengths = np.load(f"/avatar/vmehta/{self.filepath}/{self.filepath}_wavelength.npy")
-        self.labels = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]
+        self.labels = ["1", "2", "3", "4", "5", "6"]
         self.vectorizer = PolynomialVectorizer(self.labels, 2)
-
-        if isinstance(self.training_set, np.ndarray) and self.training_set.dtype.names is not None:
-            self.labels_array_all = np.vstack([self.training_set[ln] for ln in self.labels]).T
-        else:
-            self.labels_array_all = np.asarray(self.training_set)
-            if self.labels_array_all.ndim == 1:
-                self.labels_array_all = self.labels_array_all.reshape(-1, len(self.labels))
+        self.labels_all = np.asarray(self.training_set)
 
         return None
     
@@ -42,14 +29,14 @@ class UniformCannonTrainer:
             os.makedirs(f"/avatar/vmehta/{self.filepath}/train_test_set/")
 
             np.random.seed(42)
-            test_idx = np.random.default_rng().choice(1000, size=500, replace=False)
+            test_idx = np.random.default_rng().choice(1100, size=100, replace=False)
             test_idx =np.sort(test_idx)
 
-            test_weights = self.labels_array_all[test_idx]
+            test_weights = self.labels_all[test_idx]
             test_spectra = self.all_spectra[test_idx]
             test_invvar = self.all_invvar[test_idx]
 
-            train_weights = np.delete(self.labels_array_all, test_idx, axis=0)
+            train_weights = np.delete(self.labels_all, test_idx, axis=0)
             train_spectra = np.delete(self.all_spectra, test_idx, axis=0)
             train_invvar = np.delete(self.all_invvar, test_idx, axis=0)
 
@@ -75,7 +62,7 @@ class UniformCannonTrainer:
 
         for i in range(int(self.num_train)):
 
-            train_idx = np.random.default_rng().choice(500, size=self.size, replace=False)
+            train_idx = np.random.default_rng().choice(1000, size=self.size, replace=False)
             train_idx = np.sort(train_idx)
 
             train_labels = self.train_weights[train_idx]
@@ -86,7 +73,8 @@ class UniformCannonTrainer:
                                 vectorizer=self.vectorizer, dispersion=self.wavelengths)
             model.train()
 
-            pred, *_ = model.test(self.test_spectra, self.test_invvar)
+            bounds = ([0] * 6, [1] * 6)
+            pred, *_ = model.test(self.test_spectra, self.test_invvar, label_bounds=bounds)
             pred_labels_all.append(pred)
             print(f"Completed train/test iteration {i+1}/{int(self.num_train)}")
 
