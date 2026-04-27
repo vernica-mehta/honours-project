@@ -11,7 +11,7 @@ from code.src.AnniesLasso.thecannon.model import CannonModel
 
 class CannonTrainer:
 
-	def __init__(self, filepath, snr=None, nlabels=None, log_model=False, log_flux=False):
+	def __init__(self, filepath, snr=None, nlabels=None, log_flux=False, load_default_dataset=True):
 
 		""" Initialise CannonTrainer class.
 		
@@ -28,7 +28,6 @@ class CannonTrainer:
 		self.filepath = filepath
 		self.labels = list(map(str, range(1,nlabels+1)))
 		self.snr = snr
-		self.log_model = log_model
 		self.log_flux = log_flux
 		self.output_root = f"/avatar/vmehta/{self.filepath}/finalmodel"
 		#self.output_subdir = 'newpriorthing'
@@ -36,14 +35,33 @@ class CannonTrainer:
 		self.output_dir = os.path.join(self.output_root) #, self.output_subdir) #, self.output_subsubdir)
 		os.makedirs(self.output_dir, exist_ok=True)
 
-		self.training_set = fits.getdata(f"/avatar/vmehta/{self.filepath}/{self.filepath}_labels.fits")
-		self.flux = np.load(f"/avatar/vmehta/{self.filepath}/{self.filepath}_snr{int(self.snr)}_spectra.npy")
-		self.ivar = np.load(f"/avatar/vmehta/{self.filepath}/{self.filepath}_snr{int(self.snr)}_invvar.npy")
-		self.wavelengths = np.load(f"/avatar/vmehta/{self.filepath}/{self.filepath}_wavelength.npy")
+		if load_default_dataset:
+			self.training_set, self.flux, self.ivar, self.wavelengths = self._load_dataset_arrays(self.filepath, self.snr)
+		else:
+			self.training_set = None
+			self.flux = None
+			self.ivar = None
+			self.wavelengths = None
 		self.vectorizer = PolynomialVectorizer(self.labels, 2)
-		self.labels_all = np.asarray(self.training_set)
+		self.labels_all = np.asarray(self.training_set) if self.training_set is not None else None
 
 		return None
+
+	def _load_dataset_arrays(self, dataset_filepath, snr):
+		"""Load labels, spectra, inverse variances, and wavelength grid for one dataset."""
+		if snr is None:
+			raise ValueError("snr must be provided when loading dataset spectra.")
+
+		base = f"/avatar/vmehta/{dataset_filepath}"
+		labels = fits.getdata(f"{base}/{dataset_filepath}_labels.fits")
+		flux = np.load(f"{base}/{dataset_filepath}_snr{int(snr)}_spectra.npy")
+		ivar = np.load(f"{base}/{dataset_filepath}_snr{int(snr)}_invvar.npy")
+		wavelengths = np.load(f"{base}/{dataset_filepath}_wavelength.npy")
+		return labels, flux, ivar, wavelengths
+
+	def _safe_name(self, value):
+		"""Sanitize values used in output filenames."""
+		return str(value).replace("/", "-")
 
 	def _iter_manual_kfold(self, k):
 		"""Yield (i, train_idx, test_idx) with one contiguous test block per fold."""
@@ -75,58 +93,62 @@ class CannonTrainer:
 		log_flux = np.where(invalid, 0.0, log_flux)
 		return log_flux, ivar_log
 
+	def _train_and_test_arrays(self, train_labels_linear, train_flux_linear, train_ivar_linear,
+							 test_labels_linear, test_flux_linear, test_ivar_linear,
+							 prefix=None, save_model_file=True):
+		"""Helper to train and test model on explicitly provided train/test arrays."""
+
+		train_flux, train_ivar = self._transform_flux_space(train_flux_linear, train_ivar_linear)
+		test_flux, test_ivar = self._transform_flux_space(test_flux_linear, test_ivar_linear)
+
+		train_labels = train_labels_linear
+
+		model = CannonModel(train_labels, train_flux, train_ivar,
+					   vectorizer=self.vectorizer, dispersion=self.wavelengths)
+
+		model.train()
+
+		n_labels = len(self.labels)
+		bounds = ([0] * n_labels, [1] * n_labels)
+		pred_labels, *_ = model.test(
+			test_flux,
+			test_ivar,
+			label_bounds=bounds)
+		
+		true_labels = test_labels_linear
+
+		# Save predictions/true labels
+		if prefix is None:
+			prefix = os.path.join(self.output_dir, f"snr{int(self.snr)}")
+		np.save(f"{prefix}_pred.npy", pred_labels)
+		np.save(f"{prefix}_true.npy", true_labels)
+
+		# Optionally save the trained model (per-fold). Default is True for compatibility.
+		if save_model_file:
+			model_path = f"{prefix}_model.pkl"
+			model.write(model_path, include_training_set_spectra=True, overwrite=True)
+
+		return (pred_labels, true_labels, model)
+
 	def _train_and_test_split(self, train_idx, test_idx, prefix=None, save_model_file=True):
 		"""Helper to train and test model on given indices, save results."""
 
 		train_flux_linear = self.flux[train_idx]
 		train_ivar_linear = self.ivar[train_idx]
-		
 		train_labels_linear = self.labels_all[train_idx]
 		test_flux_linear = self.flux[test_idx]
 		test_ivar_linear = self.ivar[test_idx]
+		test_labels_linear = self.labels_all[test_idx]
 
-		train_flux, train_ivar = self._transform_flux_space(train_flux_linear, train_ivar_linear)
-		test_flux, test_ivar = self._transform_flux_space(test_flux_linear, test_ivar_linear)
-
-		if self.log_model:
-			eps = np.finfo(float).tiny
-			train_labels = np.log10(np.clip(train_labels_linear, eps, None))
-		else:
-			train_labels = train_labels_linear
-
-		model = CannonModel(train_labels, train_flux, train_ivar, 
-					   vectorizer=self.vectorizer, dispersion=self.wavelengths)
-		
-		model.train()
-		
-		if self.log_model:
-			pred_labels_log, *_ = model.test(
-				test_flux,
-				test_ivar)
-			pred_labels = np.power(10.0, pred_labels_log)
-		else:
-			n_labels = len(self.labels)
-			bounds = ([0] * n_labels, [1] * n_labels)
-			pred_labels, *_ = model.test(
-				test_flux,
-				test_ivar,
-				label_bounds=bounds)
-		true_labels = self.labels_all[test_idx]
-
-		# Save predictions/true labels
-		if prefix != None:
-			prefix = prefix
-		else:
-			prefix = os.path.join(self.output_dir, f"snr{int(self.snr)}")
-		np.save(f"{prefix}_pred.npy", pred_labels)
-		np.save(f"{prefix}_true.npy", true_labels)
-		
-		# Optionally save the trained model (per-fold). Default is True for compatibility.
-		if save_model_file:
-			model_path = f"{prefix}_model.pkl"
-			model.write(model_path, include_training_set_spectra=True, overwrite=True)
-		
-		return (pred_labels, true_labels, model)
+		return self._train_and_test_arrays(
+			train_labels_linear,
+			train_flux_linear,
+			train_ivar_linear,
+			test_labels_linear,
+			test_flux_linear,
+			test_ivar_linear,
+			prefix=prefix,
+			save_model_file=save_model_file)
 
 	def kfold_train(self):
 		"""Manual k-fold using contiguous blocks for testing and the rest for training."""
@@ -145,6 +167,42 @@ class CannonTrainer:
 		test_idx = perm[split:]
 		print(f"Train/test split (seed={random_seed}): train {len(train_idx)}, test {len(test_idx)}")
 		self._train_and_test_split(train_idx, test_idx)
+		return
+
+	def train_and_test_predefined(self, train_filepath, test_filepath, train_snr=None, test_snr=None):
+		"""Train on one dataset and test on another predefined dataset."""
+		if train_snr is None:
+			train_snr = self.snr
+		if test_snr is None:
+			test_snr = self.snr
+
+		train_labels, train_flux, train_ivar, train_wavelengths = self._load_dataset_arrays(train_filepath, train_snr)
+		test_labels, test_flux, test_ivar, test_wavelengths = self._load_dataset_arrays(test_filepath, test_snr)
+
+		if not np.allclose(train_wavelengths, test_wavelengths):
+			raise ValueError("Train and test wavelength grids do not match.")
+
+		self.wavelengths = train_wavelengths
+
+		train_name = self._safe_name(train_filepath)
+		test_name = self._safe_name(test_filepath)
+		prefix = os.path.join(
+			self.output_dir,
+			f"train_{train_name}_snr{int(train_snr)}__test_{test_name}_snr{int(test_snr)}")
+
+		print(
+			f"Predefined train/test: train={train_filepath} ({len(train_labels)} rows), "
+			f"test={test_filepath} ({len(test_labels)} rows)")
+
+		self._train_and_test_arrays(
+			train_labels,
+			train_flux,
+			train_ivar,
+			test_labels,
+			test_flux,
+			test_ivar,
+			prefix=prefix,
+			save_model_file=True)
 		return
 
 	def cross_validate(self, k):
@@ -201,16 +259,31 @@ if __name__ == "__main__":
 	parser.add_argument("--kfold", type=int, default=None, help="Number of folds for k-fold cross-validation")
 	parser.add_argument("--snr", type=float, default=None, help="Signal-to-noise ratio used for noisy spectra")
 	parser.add_argument("--nlabels", type=int, default=None, help="Number of labels (bins) used in the SFH")
-	parser.add_argument("--log-model", action="store_true", help="Train/test in log10 label space but save linear labels")
 	parser.add_argument("--log-flux", action="store_true", help="Train/test in log10 flux space")
+	parser.add_argument("--train-filepath", type=str, default=None, help="Dataset basename to use as training set")
+	parser.add_argument("--test-filepath", type=str, default=None, help="Dataset basename to use as test set")
+	parser.add_argument("--train-snr", type=float, default=None, help="SNR for training dataset spectra (defaults to --snr)")
+	parser.add_argument("--test-snr", type=float, default=None, help="SNR for test dataset spectra (defaults to --snr)")
 	args = parser.parse_args()
+	use_predefined_sets = args.train_filepath is not None or args.test_filepath is not None
+	if (args.train_filepath is None) != (args.test_filepath is None):
+		raise ValueError("Provide both --train-filepath and --test-filepath, or neither.")
 	trainer = CannonTrainer(
 		args.filepath,
 		snr=args.snr,
 		nlabels=args.nlabels,
-		log_model=args.log_model,
-		log_flux=args.log_flux)
-	if args.kfold is not None and args.kfold > 1:
+		log_flux=args.log_flux,
+		load_default_dataset=not use_predefined_sets)
+
+	if use_predefined_sets:
+		if args.kfold is not None and args.kfold > 1:
+			raise ValueError("--kfold cannot be used with predefined train/test datasets.")
+		trainer.train_and_test_predefined(
+			train_filepath=args.train_filepath,
+			test_filepath=args.test_filepath,
+			train_snr=args.train_snr,
+			test_snr=args.test_snr)
+	elif args.kfold is not None and args.kfold > 1:
 		trainer.cross_validate(k=args.kfold)
 	else:
 		trainer.train_and_test()
