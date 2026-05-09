@@ -10,7 +10,7 @@ class UniformCannonTrainer:
 
         self.filepath = filepath
         self.size = size
-        self.num_train = np.min([int(1000 / self.size), 10]) # maximum of 10 iterations to prevent excessive runtime
+        self.num_train = 1 #np.min([int(1000 / self.size), 10]) # maximum of 10 iterations to prevent excessive runtime
 
         self.training_set = fits.getdata(f"/avatar/vmehta/{self.filepath}/{self.filepath}_labels.fits")
         self.all_spectra = np.load(f"/avatar/vmehta/{self.filepath}/{self.filepath}_snr100_spectra.npy")
@@ -59,6 +59,7 @@ class UniformCannonTrainer:
 
         self.get_test_set()
         pred_labels_all = []
+        train_labels_all = []
 
         for i in range(int(self.num_train)):
 
@@ -69,6 +70,8 @@ class UniformCannonTrainer:
             train_flux = self.train_spectra[train_idx]
             train_ivar = self.train_invvar[train_idx]
 
+            train_labels_all.append(train_labels)
+
             model = CannonModel(train_labels, train_flux, train_ivar,
                                 vectorizer=self.vectorizer, dispersion=self.wavelengths)
             model.train()
@@ -78,18 +81,20 @@ class UniformCannonTrainer:
             pred_labels_all.append(pred)
             print(f"Completed train/test iteration {i+1}/{int(self.num_train)}")
 
+        train_labels_all = np.array(train_labels_all)
         pred_labels_all = np.array(pred_labels_all)
         pred_labels = np.mean(pred_labels_all, axis=0)
         true_labels = self.test_weights
 
-        return pred_labels, true_labels
+        return train_labels_all, pred_labels, true_labels
     
     def save_results(self):
 
-        pred_labels, true_labels = self.train_and_test()
+        train_labels, pred_labels, true_labels = self.train_and_test()
         np.save(f"/avatar/vmehta/{self.filepath}/{self.size}_pred_labels.npy", pred_labels)
         np.save(f"/avatar/vmehta/{self.filepath}/true_labels.npy", true_labels) if not os.path.exists(f"/avatar/vmehta/{self.filepath}/true_labels.npy") else None
-        
+        np.save(f"/avatar/vmehta/{self.filepath}/{self.size}_train_labels.npy", train_labels)
+
         return None
 
 if __name__ == "__main__":
