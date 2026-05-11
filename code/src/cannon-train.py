@@ -2,6 +2,13 @@
 # Class file for training The Cannon on a set of galaxy spectra.
 # Can be used for any set of labels for which a training library exists
 
+from pathlib import Path
+import sys
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+	sys.path.insert(0, str(REPO_ROOT))
+
 # imports
 import os
 import numpy as np
@@ -21,18 +28,13 @@ class CannonTrainer:
 			Base filename for input/output
 		labels : list
 			List of label names for training
-		log_flux : bool
-			Whether to take the logarithm of the flux before training
 		"""
 
 		self.filepath = filepath
 		self.labels = list(map(str, range(1,nlabels+1)))
 		self.snr = snr
 		self.log_flux = log_flux
-		self.output_root = f"/avatar/vmehta/{self.filepath}/finalmodel"
-		#self.output_subdir = 'newpriorthing'
-		#self.output_subsubdir = "log-flux" if self.log_flux else "linear-flux"
-		self.output_dir = os.path.join(self.output_root) #, self.output_subdir) #, self.output_subsubdir)
+		self.output_dir = f"/avatar/vmehta/{self.filepath}/finalmodel"
 		os.makedirs(self.output_dir, exist_ok=True)
 
 		if load_default_dataset:

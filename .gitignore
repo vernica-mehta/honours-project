@@ -16,7 +16,6 @@ venv/
 *.o
 *.mod
 *.exe
-.DS_Store
 nr
 SPECTRA/CKC14/*
 OUTPUTS/*
@@ -30,3 +29,7 @@ Makefile.prv
 *.sh
 *.code-workspace
 .vscode
+
+# Allow repository data folder under code to be tracked (override generic ignores above)
+!code/data/
+!code/data/**
